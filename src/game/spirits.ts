@@ -1,6 +1,18 @@
 import { CROPS, CROP_ORDER, type CropId } from "../data/crops";
-import { SPIRITS, TRUST_MAX, type SpiritDef, type SpiritId } from "../data/spirits";
-import { MAP_W, TILE, inBounds, objectAt, tileAt, type World } from "../data/world";
+import {
+  SPIRITS,
+  TRUST_MAX,
+  type SpiritDef,
+  type SpiritId,
+} from "../data/spirits";
+import {
+  MAP_W,
+  TILE,
+  inBounds,
+  objectAt,
+  tileAt,
+  type World,
+} from "../data/world";
 import { DAY_LENGTH, type Game } from "./state";
 import type { Events } from "./systems";
 
@@ -55,11 +67,18 @@ function orderFor(i: number): SpiritId {
 }
 
 function rollWant(def: SpiritDef): CropId {
-  return Math.random() < 0.55 ? def.favorite : CROP_ORDER[Math.floor(Math.random() * CROP_ORDER.length)];
+  return Math.random() < 0.55
+    ? def.favorite
+    : CROP_ORDER[Math.floor(Math.random() * CROP_ORDER.length)];
 }
 
 /** Spirits roam near their dolmen; at dusk they drift home to sleep. */
-export function stepSpirits(list: Spirit[], g: Game, w: World, dt: number): void {
+export function stepSpirits(
+  list: Spirit[],
+  g: Game,
+  w: World,
+  dt: number,
+): void {
   const night = g.dayTime / DAY_LENGTH > 0.82;
   for (const s of list) {
     const def = SPIRITS[s.id];
@@ -91,7 +110,10 @@ export function stepSpirits(list: Spirit[], g: Game, w: World, dt: number): void
 
     const nx = s.x + dx * def.speed * dt;
     const ny = s.y + dy * def.speed * dt;
-    if (blocked(w, nx, ny, def.hover) || outOfRange(s, nx, ny, def.homeRadius)) {
+    if (
+      blocked(w, nx, ny, def.hover) ||
+      outOfRange(s, nx, ny, def.homeRadius)
+    ) {
       s.vx = 0;
       s.vy = 0;
       s.pause = 0.5 + Math.random() * 1.5;
@@ -168,7 +190,10 @@ export function feedSpirit(s: Spirit, g: Game, ev: Events): void {
     g.harvest[other] -= 1;
     s.fed = true;
     g.coins += 4;
-    ev.toast(`${def.name} понюхав «${CROPS[other].name}» і відвернувся: хотів «${CROPS[s.want].name}»`, "bad");
+    ev.toast(
+      `${def.name} понюхав «${CROPS[other].name}» і відвернувся: хотів «${CROPS[s.want].name}»`,
+      "bad",
+    );
     return;
   }
   ev.toast(`${def.name} чекає на свіжу «${CROPS[s.want].name}»`, "info");
@@ -177,22 +202,38 @@ export function feedSpirit(s: Spirit, g: Game, ev: Events): void {
 function applyGift(s: Spirit, g: Game, def: SpiritDef, ev: Events): void {
   if (s.trust === 2) {
     g.seeds[def.gifts[0]] += 2;
-    ev.toast(`${def.name} лишив у долоні 2 насінини «${CROPS[def.gifts[0]].name}»`, "good");
+    ev.toast(
+      `${def.name} лишив у долоні 2 насінини «${CROPS[def.gifts[0]].name}»`,
+      "good",
+    );
   } else if (s.trust === TRUST_MAX) {
     g.seeds[def.gifts[1]] += 1;
-    ev.toast(`${def.name} визнав вас другом гаю: 1 насінина «${CROPS[def.gifts[1]].name}» і благословення грядок`, "good");
+    ev.toast(
+      `${def.name} визнав вас другом гаю: 1 насінина «${CROPS[def.gifts[1]].name}» і благословення грядок`,
+      "good",
+    );
   }
 }
 
 /** Dawn: spirits get new cravings, vines carry rumours, trusted spirits bless plots. */
-export function spiritDawn(list: Spirit[], g: Game, w: World, ev: Events): void {
+export function spiritDawn(
+  list: Spirit[],
+  g: Game,
+  w: World,
+  ev: Events,
+): void {
   if (g.harvest.whisper_vine > 0) {
-    const shy = list.filter((s) => s.trust < TRUST_MAX).sort((a, b) => a.trust - b.trust)[0];
+    const shy = list
+      .filter((s) => s.trust < TRUST_MAX)
+      .sort((a, b) => a.trust - b.trust)[0];
     if (shy) {
       g.harvest.whisper_vine -= 1;
       shy.trust += 1;
       const def = SPIRITS[shy.id];
-      ev.toast(`Лоза передала духам чутку про вашу турботу. ${def.name}: довіра ${shy.trust}/${TRUST_MAX}`, "good");
+      ev.toast(
+        `Лоза передала духам чутку про вашу турботу. ${def.name}: довіра ${shy.trust}/${TRUST_MAX}`,
+        "good",
+      );
       applyGift(shy, g, def, ev);
     }
   }
@@ -201,13 +242,27 @@ export function spiritDawn(list: Spirit[], g: Game, w: World, ev: Events): void 
     s.fed = false;
     s.want = rollWant(SPIRITS[s.id]);
     if (s.trust < TRUST_MAX) continue;
-    const growing = [...w.plots.entries()].filter(([, p]) => p.crop && p.points < CROPS[p.crop].matureAt);
+    const growing = [...w.plots.entries()].filter(
+      ([, p]) => p.crop && p.points < CROPS[p.crop].matureAt,
+    );
     for (let n = 0; n < 2 && growing.length; n++) {
-      const [i, p] = growing.splice(Math.floor(Math.random() * growing.length), 1)[0];
+      const [i, p] = growing.splice(
+        Math.floor(Math.random() * growing.length),
+        1,
+      )[0];
       p.points += 1;
       blessed += 1;
-      ev.fx((i % MAP_W) * TILE + 8, Math.floor(i / MAP_W) * TILE + 8, "#8f6fd6", "spark");
+      ev.fx(
+        (i % MAP_W) * TILE + 8,
+        Math.floor(i / MAP_W) * TILE + 8,
+        "#8f6fd6",
+        "spark",
+      );
     }
   }
-  if (blessed) ev.toast(`Духи благословили грядки: ${blessed} дозріють на день швидше`, "good");
+  if (blessed)
+    ev.toast(
+      `Духи благословили грядки: ${blessed} дозріють на день швидше`,
+      "good",
+    );
 }

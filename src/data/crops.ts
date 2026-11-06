@@ -10,7 +10,8 @@ import {
   MATURE_WHISPER_VINE,
 } from "./art";
 
-export type CropId = "moonpetal" | "ember_root" | "glass_fern" | "voidcap" | "whisper_vine";
+export type CropId =
+  "moonpetal" | "ember_root" | "glass_fern" | "voidcap" | "whisper_vine";
 
 export type CropDef = {
   id: CropId;
@@ -25,7 +26,12 @@ export type CropDef = {
   /** water drained from a plot each dawn */
   thirst: number;
   shapes: [Sprite, Sprite, Sprite, Sprite];
-  palettes: [Record<string, string>, Record<string, string>, Record<string, string>, Record<string, string>];
+  palettes: [
+    Record<string, string>,
+    Record<string, string>,
+    Record<string, string>,
+    Record<string, string>,
+  ];
   blurb: string;
 };
 
@@ -48,7 +54,8 @@ export const CROPS: Record<CropId, CropDef> = {
       leaf("#4e7f8c", "#a8c6e8", "#182035"),
       { k: "#182035", a: "#4e7f8c", b: "#c9d8f5", c: "#7ea8ff", d: "#f2f7ff" },
     ],
-    blurb: "Пелюстки світла вбирають місячне сяйво. Найпростіший початок для вигнанця.",
+    blurb:
+      "Пелюстки світла вбирають місячне сяйво. Найпростіший початок для вигнанця.",
   },
   ember_root: {
     id: "ember_root",
@@ -131,3 +138,6 @@ export const CROP_ORDER: CropId[] = [
   "voidcap",
   "whisper_vine",
 ];
+
+/** Spores ripen only on the mycelium nodes underground — the stall has never sold them. */
+export const NETWORK_ONLY_SEEDS: CropId[] = ["voidcap"];

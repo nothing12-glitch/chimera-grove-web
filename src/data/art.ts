@@ -311,45 +311,50 @@ export const MATURE_VOIDCAP: Sprite = {
 };
 
 /** Climbing tendril with three hanging bells — built from rects so it stays pixel-exact. */
-export const MATURE_WHISPER_VINE: Sprite = rects(16, 16, [
-  // stem shadow, then lit stem one pixel left of it
-  [8, 0, 1, 3, "#241b2e"],
-  [7, 3, 1, 3, "#241b2e"],
-  [9, 6, 1, 3, "#241b2e"],
-  [8, 9, 1, 3, "#241b2e"],
-  [7, 12, 1, 4, "#241b2e"],
-  [7, 0, 1, 3, "#5c8a4a"],
-  [6, 3, 1, 3, "#5c8a4a"],
-  [8, 6, 1, 3, "#5c8a4a"],
-  [7, 9, 1, 3, "#5c8a4a"],
-  [6, 12, 1, 4, "#5c8a4a"],
-  // top curl
-  [8, 0, 3, 1, "#5c8a4a"],
-  [10, 1, 2, 1, "#a9d17a"],
-  // leaves
-  [4, 2, 2, 1, "#a9d17a"],
-  [3, 3, 2, 1, "#5c8a4a"],
-  [9, 5, 2, 1, "#a9d17a"],
-  [10, 6, 2, 1, "#5c8a4a"],
-  [4, 10, 2, 1, "#a9d17a"],
-  [3, 11, 2, 1, "#5c8a4a"],
-  [9, 13, 2, 1, "#a9d17a"],
-  // bell 1
-  [4, 4, 1, 1, "#5c8a4a"],
-  [3, 4, 3, 1, "#241b2e"],
-  [3, 5, 3, 2, "#8f6fd6"],
-  [4, 7, 1, 1, "#e3d1ff"],
-  // bell 2
-  [9, 7, 1, 1, "#5c8a4a"],
-  [10, 7, 3, 1, "#241b2e"],
-  [10, 8, 3, 2, "#8f6fd6"],
-  [11, 10, 1, 1, "#e3d1ff"],
-  // bell 3
-  [5, 12, 1, 1, "#5c8a4a"],
-  [4, 12, 3, 1, "#241b2e"],
-  [4, 13, 3, 2, "#8f6fd6"],
-  [5, 15, 1, 1, "#e3d1ff"],
-], { k: "#241b2e", a: "#5c8a4a", b: "#8f6fd6", c: "#e3d1ff", d: "#a9d17a" });
+export const MATURE_WHISPER_VINE: Sprite = rects(
+  16,
+  16,
+  [
+    // stem shadow, then lit stem one pixel left of it
+    [8, 0, 1, 3, "#241b2e"],
+    [7, 3, 1, 3, "#241b2e"],
+    [9, 6, 1, 3, "#241b2e"],
+    [8, 9, 1, 3, "#241b2e"],
+    [7, 12, 1, 4, "#241b2e"],
+    [7, 0, 1, 3, "#5c8a4a"],
+    [6, 3, 1, 3, "#5c8a4a"],
+    [8, 6, 1, 3, "#5c8a4a"],
+    [7, 9, 1, 3, "#5c8a4a"],
+    [6, 12, 1, 4, "#5c8a4a"],
+    // top curl
+    [8, 0, 3, 1, "#5c8a4a"],
+    [10, 1, 2, 1, "#a9d17a"],
+    // leaves
+    [4, 2, 2, 1, "#a9d17a"],
+    [3, 3, 2, 1, "#5c8a4a"],
+    [9, 5, 2, 1, "#a9d17a"],
+    [10, 6, 2, 1, "#5c8a4a"],
+    [4, 10, 2, 1, "#a9d17a"],
+    [3, 11, 2, 1, "#5c8a4a"],
+    [9, 13, 2, 1, "#a9d17a"],
+    // bell 1
+    [4, 4, 1, 1, "#5c8a4a"],
+    [3, 4, 3, 1, "#241b2e"],
+    [3, 5, 3, 2, "#8f6fd6"],
+    [4, 7, 1, 1, "#e3d1ff"],
+    // bell 2
+    [9, 7, 1, 1, "#5c8a4a"],
+    [10, 7, 3, 1, "#241b2e"],
+    [10, 8, 3, 2, "#8f6fd6"],
+    [11, 10, 1, 1, "#e3d1ff"],
+    // bell 3
+    [5, 12, 1, 1, "#5c8a4a"],
+    [4, 12, 3, 1, "#241b2e"],
+    [4, 13, 3, 2, "#8f6fd6"],
+    [5, 15, 1, 1, "#e3d1ff"],
+  ],
+  { k: "#241b2e", a: "#5c8a4a", b: "#8f6fd6", c: "#e3d1ff", d: "#a9d17a" },
+);
 
 /* ---------------- player ---------------- */
 
@@ -401,7 +406,12 @@ export const PLAYER_DOWN_WALK: Sprite = {
   pal: PLAYER_PAL,
   rows: PLAYER_DOWN.rows.map((r, i) =>
     i >= 15 && i <= 18
-      ? ["...kbbbbbbk.....", "...kbk..kbk.....", "....kbk.kbk.....", "....kkk.kkk....."][i - 15]
+      ? [
+          "...kbbbbbbk.....",
+          "...kbk..kbk.....",
+          "....kbk.kbk.....",
+          "....kkk.kkk.....",
+        ][i - 15]
       : r,
   ),
 };
@@ -467,7 +477,14 @@ export const PLAYER_SIDE: Sprite = {
 export const PINE: Sprite = {
   w: 16,
   h: 32,
-  pal: { k: "#131f14", g: "#2c4a2a", G: "#3f6237", l: "#587c42", w: "#4a3120", W: "#5f4029" },
+  pal: {
+    k: "#131f14",
+    g: "#2c4a2a",
+    G: "#3f6237",
+    l: "#587c42",
+    w: "#4a3120",
+    W: "#5f4029",
+  },
   rows: [
     ".......kk.......",
     "......kllk......",
@@ -507,7 +524,14 @@ export const PINE: Sprite = {
 export const ROUND_TREE: Sprite = {
   w: 16,
   h: 28,
-  pal: { k: "#16220f", g: "#39602f", G: "#4d7a3b", l: "#6d9a4b", w: "#4a3120", W: "#63432a" },
+  pal: {
+    k: "#16220f",
+    g: "#39602f",
+    G: "#4d7a3b",
+    l: "#6d9a4b",
+    w: "#4a3120",
+    W: "#63432a",
+  },
   rows: [
     "....kkkkkkkk....",
     "...kgGGGGGGgk...",
@@ -726,7 +750,9 @@ function rects(
     taken.add(ch);
     return ch;
   };
-  const grid: string[][] = Array.from({ length: h }, () => Array.from({ length: w }, () => "."));
+  const grid: string[][] = Array.from({ length: h }, () =>
+    Array.from({ length: w }, () => "."),
+  );
   for (const [x, y, rw, rh, color] of ops) {
     const ch = Object.keys(pal).find((k) => pal[k] === color) ?? freeChar();
     pal[ch] = color;
@@ -941,4 +967,117 @@ export const SHRINE: Sprite = rects(16, 24, [
   [2, 22, 12, 1, STONE_DARK],
 ]);
 
+const ROCK_D = "#15101d";
+const CAVE_ROCK = "#241d31";
+const ROCK_LIT = "#372c4a";
+const THREAD = "#8f6fd6";
+const THREAD_LIT = "#cbb8ff";
+const SPORE = "#e3d1ff";
+const STEM = "#5b4a7a";
+const CAP_TEAL = "#9fe3d6";
+const CAP_LIT = "#d8fff7";
+const ROOT_WOOD = "#6b4b34";
+const DAYLIGHT = "#f4d9b8";
 
+/** Mycelium node: a spore bulb swollen on a knot of lit threads. */
+export const MYCEL_NODE: Sprite = rects(16, 16, [
+  [3, 13, 10, 2, ROCK_D],
+  [4, 12, 3, 1, THREAD],
+  [9, 12, 3, 1, THREAD],
+  [2, 10, 2, 1, THREAD],
+  [12, 10, 2, 1, THREAD],
+  [7, 8, 2, 5, STEM],
+  [6, 2, 4, 1, SPORE],
+  [5, 3, 6, 3, SPORE],
+  [4, 4, 8, 2, SPORE],
+  [4, 6, 8, 1, THREAD],
+  [6, 3, 2, 1, "#ffffff"],
+  [9, 4, 1, 1, THREAD_LIT],
+  [1, 11, 2, 1, ROCK_LIT],
+  [13, 11, 2, 1, ROCK_LIT],
+]);
+
+/** Emptied node — the husk stays until the next dawn refills it. */
+export const MYCEL_SPENT: Sprite = rects(16, 16, [
+  [3, 13, 10, 2, ROCK_D],
+  [4, 12, 3, 1, ROCK_LIT],
+  [9, 12, 3, 1, ROCK_LIT],
+  [7, 9, 2, 4, STEM],
+  [5, 6, 6, 4, CAVE_ROCK],
+  [5, 5, 6, 1, ROCK_LIT],
+  [6, 7, 4, 2, ROCK_D],
+  [2, 11, 2, 1, THREAD],
+  [12, 11, 2, 1, THREAD],
+]);
+
+/** The way out: a root ladder up into a disc of surface daylight. */
+export const SHAFT_UP: Sprite = rects(16, 20, [
+  [0, 0, 16, 6, ROCK_D],
+  [4, 0, 8, 5, DAYLIGHT],
+  [5, 1, 6, 3, "#fff3d0"],
+  [3, 5, 10, 1, ROCK_LIT],
+  [4, 6, 1, 14, ROOT_WOOD],
+  [11, 6, 1, 14, ROOT_WOOD],
+  [4, 8, 8, 1, "#8a6038"],
+  [4, 11, 8, 1, "#8a6038"],
+  [4, 14, 8, 1, "#8a6038"],
+  [4, 17, 8, 1, "#8a6038"],
+  [2, 6, 1, 13, THREAD],
+  [13, 6, 1, 13, THREAD],
+]);
+
+/** Deep node: the root mass spirals down into the next layer. */
+export const DEEP_WELL: Sprite = rects(16, 16, [
+  [2, 3, 12, 10, CAVE_ROCK],
+  [3, 4, 10, 8, ROCK_D],
+  [4, 5, 8, 6, "#0a0710"],
+  [5, 6, 6, 4, "#050308"],
+  [3, 3, 4, 1, THREAD],
+  [9, 12, 4, 1, THREAD],
+  [12, 4, 1, 4, THREAD],
+  [3, 8, 1, 4, THREAD],
+  [11, 5, 2, 1, THREAD_LIT],
+  [4, 10, 2, 1, THREAD_LIT],
+  [1, 13, 14, 2, ROCK_D],
+]);
+
+/** Glowcap: the cave's only friendly light. */
+export const CAVE_CAP: Sprite = rects(16, 16, [
+  [7, 8, 2, 5, THREAD_LIT],
+  [4, 4, 8, 4, CAP_TEAL],
+  [5, 3, 6, 1, CAP_LIT],
+  [3, 5, 1, 2, CAP_TEAL],
+  [12, 5, 1, 2, CAP_TEAL],
+  [6, 5, 2, 1, CAP_LIT],
+  [9, 6, 2, 1, "#5f9aab"],
+  [5, 13, 6, 1, ROCK_D],
+]);
+
+/** Fallen root rubble — it stops you cold. */
+export const CAVE_DEBRIS: Sprite = rects(16, 16, [
+  [2, 10, 12, 4, ROCK_D],
+  [3, 8, 5, 3, CAVE_ROCK],
+  [9, 9, 5, 2, CAVE_ROCK],
+  [4, 8, 3, 1, ROCK_LIT],
+  [10, 9, 3, 1, ROCK_LIT],
+  [2, 12, 4, 1, THREAD],
+  [9, 13, 4, 1, THREAD],
+]);
+
+/** The mouth of the Root Network: a sinkhole of root strands under the pond bank. */
+export const SINKHOLE: Sprite = rects(16, 16, [
+  [1, 3, 14, 10, "#2a2118"],
+  [2, 4, 12, 8, "#160f16"],
+  [3, 5, 10, 6, "#080510"],
+  [4, 6, 8, 4, "#040308"],
+  [0, 2, 3, 1, "#5b3b23"],
+  [13, 2, 3, 1, "#5b3b23"],
+  [2, 1, 2, 2, "#6b4728"],
+  [11, 1, 3, 2, "#6b4728"],
+  [4, 2, 1, 3, "#7a5f3f"],
+  [10, 2, 1, 4, "#7a5f3f"],
+  [6, 12, 4, 2, "#241d31"],
+  [1, 12, 2, 1, "#8f6fd6"],
+  [13, 11, 2, 1, "#8f6fd6"],
+  [7, 14, 3, 1, "#1a1420"],
+]);

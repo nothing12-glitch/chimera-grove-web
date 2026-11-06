@@ -1,4 +1,4 @@
-import { CROPS, type CropId } from "../data/crops";
+import { CROPS, NETWORK_ONLY_SEEDS, type CropId } from "../data/crops";
 import {
   idx,
   isSolid,
@@ -8,8 +8,17 @@ import {
   type Plot,
   type World,
 } from "../data/world";
-import { CAN_CAPACITY, DAY_LENGTH, MOISTURE_MAX, saveGame, type Dir, type Game } from "./state";
+import {
+  CAN_CAPACITY,
+  DAY_LENGTH,
+  MOISTURE_MAX,
+  saveGame,
+  type Dir,
+  type Game,
+} from "./state";
 import { SPIRITS, TRUST_MAX, type SpiritId } from "../data/spirits";
+import type { Cave } from "../data/roots";
+import { caveHint, interactCave, rootsDawn, type RootsRun } from "./roots";
 import { feedSpirit, spiritDawn, spiritInReach, type Spirit } from "./spirits";
 
 export type FX = {
@@ -26,7 +35,13 @@ export type Events = {
   toast(text: string, tone?: "good" | "bad" | "info"): void;
   fx(x: number, y: number, color: string, kind?: FX["kind"]): void;
   shake(power: number): void;
+  enterRoots(): void;
+  descend(): void;
+  ascend(): void;
 };
+
+/** Everything a rule needs beyond the game and the grove: the three spirits and the active dive. */
+export type Ctx = { spirits: Spirit[]; run: RootsRun; cave: Cave | null };
 
 export function facingTile(g: Game): { tx: number; ty: number } {
   const cx = Math.floor((g.px + 8) / 16);
@@ -47,7 +62,22 @@ export function nearStall(g: Game, w: World): boolean {
   return Math.hypot(px - (w.stall.tx + 0.5), py - (w.stall.ty + 0.5)) < 2.6;
 }
 
-export function movePlayer(g: Game, w: World, dx: number, dy: number, dt: number): void {
+export function nearSinkhole(g: Game, w: World): boolean {
+  if (g.scene !== "grove") return false;
+  const px = g.px / 16;
+  const py = g.py / 16;
+  return (
+    Math.hypot(px - (w.sinkhole.tx + 0.5), py - (w.sinkhole.ty + 0.5)) < 1.7
+  );
+}
+
+export function movePlayer(
+  g: Game,
+  w: World,
+  dx: number,
+  dy: number,
+  dt: number,
+): void {
   const speed = 78;
   const nx = g.px + dx * speed * dt;
   const ny = g.py + dy * speed * dt;
@@ -76,29 +106,49 @@ function walkable(w: World, x: number, y: number): boolean {
 
 export type Hint = { label: string; key: string };
 
-export function currentHint(g: Game, w: World, spirits: Spirit[]): Hint | null {
+export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
   if (g.shopOpen) return null;
-  const reach = spiritInReach(g, spirits);
+  if (ctx.cave && g.scene === "roots") return caveHint(g, ctx.run, ctx.cave);
+  const reach = spiritInReach(g, ctx.spirits);
   if (reach) {
     const def = SPIRITS[reach.id];
     return {
       key: "E",
-      label: reach.fed ? `${def.name} ситий · довіра ${reach.trust}/${TRUST_MAX}` : `Пригостити: ${def.name} хоче «${CROPS[reach.want].name}»`,
+      label: reach.fed
+        ? `${def.name} ситий · довіра ${reach.trust}/${TRUST_MAX}`
+        : `Пригостити: ${def.name} хоче «${CROPS[reach.want].name}»`,
     };
   }
+  if (nearSinkhole(g, w))
+    return { key: "E", label: "Спуститися в Мережу Коренів" };
   if (nearStall(g, w)) return { key: "E", label: "Відкрити прилавок" };
   const { tx, ty } = facingTile(g);
   const plot = w.plots.get(idx(tx, ty));
-  if (plot?.crop && isMature(plot)) return { key: "E", label: `Зібрати ${CROPS[plot.crop].name}` };
+  if (plot?.crop && isMature(plot))
+    return { key: "E", label: `Зібрати ${CROPS[plot.crop].name}` };
   const slot = g.slots[g.selected];
   const tile = tileAt(w, tx, ty);
   if (tile === "water" && slot.kind === "tool" && slot.tool === "can")
-    return { key: "E", label: g.charges >= CAN_CAPACITY ? "Лійка вже повна" : "Наповнити лійку" };
+    return {
+      key: "E",
+      label: g.charges >= CAN_CAPACITY ? "Лійка вже повна" : "Наповнити лійку",
+    };
   if (slot.kind === "tool" && slot.tool === "hoe" && isTillable(w, tx, ty))
     return { key: "E", label: "Розорати грядку" };
-  if (slot.kind === "tool" && slot.tool === "can" && tile === "soil" && plot && plot.moisture < MOISTURE_MAX)
+  if (
+    slot.kind === "tool" &&
+    slot.tool === "can" &&
+    tile === "soil" &&
+    plot &&
+    plot.moisture < MOISTURE_MAX
+  )
     return { key: "E", label: "Поливити" };
-  if (tile === "soil" && !plot?.crop && slot.kind === "seed" && g.seeds[slot.crop] > 0)
+  if (
+    tile === "soil" &&
+    !plot?.crop &&
+    slot.kind === "seed" &&
+    g.seeds[slot.crop] > 0
+  )
     return { key: "E", label: `Посадити ${CROPS[slot.crop].name}` };
   return null;
 }
@@ -116,18 +166,30 @@ export function stageOf(plot: Plot): number {
   return plot.points >= def.matureAt ? 3 : Math.min(2, stage);
 }
 
-/** Primary interaction: feed a spirit / till / plant / water / refill / harvest / open shop. */
-export function interact(g: Game, w: World, ev: Events, spirits: Spirit[]): void {
+/** Primary interaction: cave node / climb / descend, or feed a spirit / till / plant / water / refill / harvest / open shop. */
+export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
   if (g.shopOpen) return;
-  const reach = spiritInReach(g, spirits);
-  if (reach) {
-    feedSpirit(reach, g, ev);
-    commit(g, w, spirits);
+  const spirits = ctx.spirits;
+  if (ctx.cave && g.scene === "roots") {
+    const outcome = interactCave(g, ctx.run, ctx.cave, ev);
+    if (outcome === "ascend") ev.ascend();
+    else if (outcome === "descend") ev.descend();
+    else commit(g, w, ctx);
+    return;
+  }
+  if (nearSinkhole(g, w)) {
+    ev.enterRoots();
     return;
   }
   if (nearStall(g, w)) {
     g.shopOpen = true;
     ev.toast("Прилавок стародавньої торгівлі", "info");
+    return;
+  }
+  const reach = spiritInReach(g, spirits);
+  if (reach) {
+    feedSpirit(reach, g, ev);
+    commit(g, w, ctx);
     return;
   }
   const { tx, ty } = facingTile(g);
@@ -217,7 +279,7 @@ export function interact(g: Game, w: World, ev: Events, spirits: Spirit[]): void
 }
 
 /** Dawn tick: every watered plot grows; moisture drains. */
-export function advanceDay(g: Game, w: World, ev: Events, spirits: Spirit[]): void {
+export function advanceDay(g: Game, w: World, ev: Events, ctx: Ctx): void {
   g.day += 1;
   g.dayTime = 0;
   let grew = 0;
@@ -230,14 +292,16 @@ export function advanceDay(g: Game, w: World, ev: Events, spirits: Spirit[]): vo
       grew += 1;
     }
     plot.moisture = Math.max(0, plot.moisture - def.thirst);
-    if (plot.moisture === 0 && !isMature(plot) && plot.points < def.matureAt) dried += 1;
+    if (plot.moisture === 0 && !isMature(plot) && plot.points < def.matureAt)
+      dried += 1;
   }
   const ready = countReady(w);
   if (ready > 0) ev.toast(`${ready} грядок дозріло. Час збирати!`, "good");
   else if (grew) ev.toast(`День ${g.day}: ${grew} грядок виросло`);
   if (dried) ev.toast(`${dried} грядкам потрібна вода`, "bad");
-  spiritDawn(spirits, g, w, ev);
-  commit(g, w, spirits);
+  spiritDawn(ctx.spirits, g, w, ev);
+  if (ctx.cave) rootsDawn(ctx.run, ctx.cave);
+  commit(g, w, ctx);
 }
 
 export function countReady(w: World): number {
@@ -246,18 +310,24 @@ export function countReady(w: World): number {
   return n;
 }
 
-export function tickTime(g: Game, w: World, dt: number, ev: Events, spirits: Spirit[]): void {
+export function tickTime(
+  g: Game,
+  w: World,
+  dt: number,
+  ev: Events,
+  ctx: Ctx,
+): void {
   if (g.skip > 0) {
     g.skip -= dt;
     g.dayTime += dt * (DAY_LENGTH / 0.5);
     if (g.dayTime >= DAY_LENGTH || g.skip <= 0) {
       g.skip = 0;
-      advanceDay(g, w, ev, spirits);
+      advanceDay(g, w, ev, ctx);
     }
     return;
   }
   g.dayTime += dt;
-  if (g.dayTime >= DAY_LENGTH) advanceDay(g, w, ev, spirits);
+  if (g.dayTime >= DAY_LENGTH) advanceDay(g, w, ev, ctx);
 }
 
 export function startSkip(g: Game, ev: Events): void {
@@ -266,34 +336,66 @@ export function startSkip(g: Game, ev: Events): void {
   ev.toast("Алхімік чекає світанку…", "info");
 }
 
-export function commit(g: Game, w: World, spirits: Spirit[]): void {
+export function commit(g: Game, w: World, ctx: Ctx): void {
   const plots = [...w.plots.entries()].map(
-    ([i, p]) => [i, p.moisture, p.points, p.crop, p.sway] as [number, number, number, CropId | undefined, number],
+    ([i, p]) =>
+      [i, p.moisture, p.points, p.crop, p.sway] as [
+        number,
+        number,
+        number,
+        CropId | undefined,
+        number,
+      ],
   );
-  const sp = spirits.map(
-    (s) => [s.id, Math.round(s.x), Math.round(s.y), s.dir, s.trust, s.want] as [
-      SpiritId,
-      number,
-      number,
-      Dir,
-      number,
-      CropId,
-    ],
+  const sp = ctx.spirits.map(
+    (s) =>
+      [s.id, Math.round(s.x), Math.round(s.y), s.dir, s.trust, s.want] as [
+        SpiritId,
+        number,
+        number,
+        Dir,
+        number,
+        CropId,
+      ],
   );
-  saveGame(g, w.kind, plots, sp);
+  const run = ctx.run;
+  saveGame(g, w.kind, plots, sp, {
+    layer: run.layer,
+    tide: run.tide,
+    picked: run.picked,
+    surface: [run.surface.px, run.surface.py, run.surface.dir],
+  });
 }
 
-export function sellStock(g: Game, w: World, crop: CropId, qty: number, ev: Events, spirits: Spirit[]): void {
+export function sellStock(
+  g: Game,
+  w: World,
+  crop: CropId,
+  qty: number,
+  ev: Events,
+  ctx: Ctx,
+): void {
   const n = Math.min(qty, g.harvest[crop]);
   if (n <= 0) return;
   const gain = n * CROPS[crop].sellPrice;
   g.harvest[crop] -= n;
   g.coins += gain;
   ev.toast(`Продано ${n} × ${CROPS[crop].name} за ${gain} сонцязь`, "good");
-  commit(g, w, spirits);
+  commit(g, w, ctx);
 }
 
-export function buySeeds(g: Game, w: World, crop: CropId, qty: number, ev: Events, spirits: Spirit[]): void {
+export function buySeeds(
+  g: Game,
+  w: World,
+  crop: CropId,
+  qty: number,
+  ev: Events,
+  ctx: Ctx,
+): void {
+  if (NETWORK_ONLY_SEEDS.includes(crop)) {
+    ev.toast("Прилавок не торгує спорами — їх дає лише Мережа Коренів", "bad");
+    return;
+  }
   const cost = CROPS[crop].seedCost * qty;
   if (g.coins < cost) {
     ev.toast(`Бракує ${cost - g.coins} сонцязь`, "bad");
@@ -302,5 +404,5 @@ export function buySeeds(g: Game, w: World, crop: CropId, qty: number, ev: Event
   g.coins -= cost;
   g.seeds[crop] += qty;
   ev.toast(`Куплено ${qty} насіння «${CROPS[crop].name}»`, "good");
-  commit(g, w, spirits);
+  commit(g, w, ctx);
 }

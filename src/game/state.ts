@@ -2,7 +2,10 @@ import type { CropId } from "../data/crops";
 import type { SpiritId } from "../data/spirits";
 
 export type ToolKind = "hoe" | "can";
-export type Slot = { kind: "tool"; tool: ToolKind } | { kind: "seed"; crop: CropId } | { kind: "empty" };
+export type Slot =
+  | { kind: "tool"; tool: ToolKind }
+  | { kind: "seed"; crop: CropId }
+  | { kind: "empty" };
 
 export const SLOT_COUNT = 8;
 export const DAY_LENGTH = 45;
@@ -25,6 +28,20 @@ export type Save = {
   plots: [number, number, number, CropId?, number?][];
   /** [species, x, y, dir, trust, want] — absent in saves written before spirits existed */
   spirits?: [SpiritId, number, number, Dir, number, CropId][];
+  /** absent in saves written before the Root Network existed */
+  roots?: RootsSave;
+  scene?: Scene;
+};
+
+export type Scene = "grove" | "roots";
+
+export type RootsSave = {
+  layer: number;
+  tide: number;
+  /** cave tile indices emptied today, keyed by layer */
+  picked: Record<number, number[]>;
+  /** where the alchemist stood above ground before descending */
+  surface: [number, number, Dir];
 };
 
 export type Dir = "down" | "up" | "left" | "right";
@@ -46,6 +63,7 @@ export type Game = {
   /** seconds of fast-forward fade left, or 0 */
   skip: number;
   shopOpen: boolean;
+  scene: Scene;
 };
 
 const KEY = "chimeragrove.save.v1";
@@ -90,6 +108,7 @@ export function newGame(): Game {
     harvest,
     skip: 0,
     shopOpen: false,
+    scene: "grove",
   };
 }
 
@@ -98,6 +117,7 @@ export function saveGame(
   kind: Uint8Array,
   plots: Save["plots"],
   spirits: Save["spirits"],
+  roots: RootsSave,
 ): void {
   const data: Save = {
     v: 1,
@@ -114,9 +134,14 @@ export function saveGame(
     harvest: g.harvest,
     plots,
     spirits,
+    roots,
+    scene: g.scene,
   };
   try {
-    localStorage.setItem(KEY, JSON.stringify({ game: data, kind: Array.from(kind) }));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ game: data, kind: Array.from(kind) }),
+    );
   } catch {
     /* storage full or blocked — the run still works in-memory */
   }

@@ -9,7 +9,8 @@
   --gold: #e8bf5e;
   --water: #7fc4d8;
   --bad: #e0796a;
-  --font: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Consolas", monospace;
+  --font:
+    ui-monospace, "SFMono-Regular", "Cascadia Mono", "Consolas", monospace;
 }
 
 * {
@@ -140,6 +141,71 @@ canvas#game {
   pointer-events: auto;
 }
 
+.cave {
+  position: absolute;
+  top: 50px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(18, 12, 30, 0.9);
+  border: 1px solid rgba(178, 148, 232, 0.35);
+  border-radius: 4px;
+  padding: 5px 9px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  color: #d8c9f5;
+}
+
+.cave[hidden] {
+  display: none;
+}
+
+.cave .depth {
+  color: #b294e8;
+  letter-spacing: 0.04em;
+}
+
+.cave .cname {
+  font-style: italic;
+  color: var(--ink-dim);
+}
+
+.cave .tide {
+  position: relative;
+  width: 92px;
+  height: 7px;
+  background: rgba(9, 6, 16, 0.85);
+  border: 1px solid rgba(178, 148, 232, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cave .tide i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #6f5aa8, #cbb8ff);
+  transition: width 0.2s linear;
+}
+
+.cave .tlabel {
+  color: var(--ink-dim);
+}
+
+.cave.danger {
+  border-color: rgba(224, 121, 106, 0.6);
+}
+
+.cave.danger .tlabel,
+.cave.danger .depth {
+  color: var(--bad);
+}
+
+.cave.danger .tide i {
+  background: linear-gradient(90deg, #8a3f36, #e0796a);
+}
+
 .spirit {
   position: relative;
   display: flex;
@@ -214,7 +280,9 @@ canvas#game {
 
 .slot.sel {
   border-color: var(--moss);
-  box-shadow: 0 0 0 2px rgba(127, 196, 138, 0.25), 0 2px 0 rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 0 0 2px rgba(127, 196, 138, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.4);
   transform: translateY(-3px);
 }
 
@@ -442,6 +510,13 @@ button {
 .row .acts button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.row .acts .nope {
+  align-self: center;
+  font-size: 11px;
+  font-style: italic;
+  color: #b294e8;
 }
 
 .keys {

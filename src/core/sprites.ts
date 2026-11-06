@@ -21,13 +21,17 @@ export function buildSprite(key: string, sprite: Sprite): HTMLCanvasElement {
       const ch = row[x] ?? ".";
       if (ch === "." || ch === " ") continue;
       const color = sprite.pal[ch];
-      if (!color) throw new Error(`sprite "${key}": no palette entry for "${ch}" at ${x},${y}`);
+      if (!color)
+        throw new Error(
+          `sprite "${key}": no palette entry for "${ch}" at ${x},${y}`,
+        );
       const i = (y * sprite.w + x) * 4;
       const c = parseHex(color);
       img.data[i] = c[0];
       img.data[i + 1] = c[1];
       img.data[i + 2] = c[2];
-      img.data[i + 3] = color.length === 9 ? parseInt(color.slice(7, 9), 16) : 255;
+      img.data[i + 3] =
+        color.length === 9 ? parseInt(color.slice(7, 9), 16) : 255;
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -52,7 +56,11 @@ function parseHex(hex: string): [number, number, number, number] {
 }
 
 /** Repaint a sprite with a different palette (same pixel shape). */
-export function buildTinted(key: string, sprite: Sprite, pal: Record<string, string>): HTMLCanvasElement {
+export function buildTinted(
+  key: string,
+  sprite: Sprite,
+  pal: Record<string, string>,
+): HTMLCanvasElement {
   return buildSprite(key, { ...sprite, pal });
 }
 

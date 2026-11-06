@@ -38,7 +38,8 @@ export const SPIRITS: Record<SpiritId, SpiritDef> = {
     id: "moss_boar",
     name: "Моховий Веприк",
     latin: "Moss Boarlet",
-    blurb: "Химерний порося, на спині якого росте папороть. Риючись у листі, піднімає родючий ґрунт.",
+    blurb:
+      "Химерний порося, на спині якого росте папороть. Риючись у листі, піднімає родючий ґрунт.",
     frames: [MOSS_BOAR, MOSS_BOAR_STEP],
     facesLeft: true,
     hover: false,
@@ -51,7 +52,8 @@ export const SPIRITS: Record<SpiritId, SpiritDef> = {
     id: "glass_moth",
     name: "Скляна Міль",
     latin: "Glass Moth",
-    blurb: "Крила з тонкого листя скляної папороті. Сяє над грядками до самого ранку.",
+    blurb:
+      "Крила з тонкого листя скляної папороті. Сяє над грядками до самого ранку.",
     frames: [GLASS_MOTH, GLASS_MOTH_W],
     facesLeft: false,
     hover: true,
@@ -64,7 +66,8 @@ export const SPIRITS: Record<SpiritId, SpiritDef> = {
     id: "ash_fox",
     name: "Попелястий Лис",
     latin: "Ash Fox",
-    blurb: "Лис із холодного вугілля; хвіст ще пам'ятає вогонь. Нишпорить ніччю й стереже зерносховище.",
+    blurb:
+      "Лис із холодного вугілля; хвіст ще пам'ятає вогонь. Нишпорить ніччю й стереже зерносховище.",
     frames: [ASH_FOX, ASH_FOX_STEP],
     facesLeft: true,
     hover: false,

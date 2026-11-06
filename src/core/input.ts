@@ -22,7 +22,14 @@ export function attachInput(target: Window): void {
   );
 }
 
-const BLOCKING = new Set(["space", "arrowup", "arrowdown", "arrowleft", "arrowright", "/"]);
+const BLOCKING = new Set([
+  "space",
+  "arrowup",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+  "/",
+]);
 
 export function isDown(key: string): boolean {
   return pressed.has(normalize(key));

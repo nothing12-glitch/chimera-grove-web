@@ -6,7 +6,17 @@ export const MAP_W = 48;
 export const MAP_H = 32;
 
 export type TileKind = "grass" | "path" | "water" | "soil";
-export type ObjectKind = "pine" | "round_tree" | "bush" | "rock" | "stump" | "stall" | "sign" | "fence" | "shrine";
+export type ObjectKind =
+  | "pine"
+  | "round_tree"
+  | "bush"
+  | "rock"
+  | "stump"
+  | "stall"
+  | "sign"
+  | "fence"
+  | "shrine"
+  | "sinkhole";
 
 export type Plot = {
   moisture: number;
@@ -23,6 +33,7 @@ export type World = {
   /** tile index -> plot data (only for soil) */
   plots: Map<number, Plot>;
   stall: { tx: number; ty: number };
+  sinkhole: { tx: number; ty: number };
   spawn: { tx: number; ty: number };
   /** where each spirit was born; they wander around these */
   spiritHomes: { tx: number; ty: number }[];
@@ -30,22 +41,37 @@ export type World = {
 };
 
 const KIND_BY_INDEX: TileKind[] = ["grass", "path", "water", "soil"];
-const INDEX_BY_KIND: Record<TileKind, number> = { grass: 0, path: 1, water: 2, soil: 3 };
+const INDEX_BY_KIND: Record<TileKind, number> = {
+  grass: 0,
+  path: 1,
+  water: 2,
+  soil: 3,
+};
 
 export const idx = (tx: number, ty: number) => ty * MAP_W + tx;
-export const inBounds = (tx: number, ty: number) => tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H;
+export const inBounds = (tx: number, ty: number) =>
+  tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H;
 
 export function tileAt(w: World, tx: number, ty: number): TileKind {
   if (!inBounds(tx, ty)) return "water";
   return KIND_BY_INDEX[w.kind[idx(tx, ty)]];
 }
 
-export function setTile(w: World, tx: number, ty: number, kind: TileKind): void {
+export function setTile(
+  w: World,
+  tx: number,
+  ty: number,
+  kind: TileKind,
+): void {
   if (!inBounds(tx, ty)) return;
   w.kind[idx(tx, ty)] = INDEX_BY_KIND[kind];
 }
 
-export function objectAt(w: World, tx: number, ty: number): ObjectKind | undefined {
+export function objectAt(
+  w: World,
+  tx: number,
+  ty: number,
+): ObjectKind | undefined {
   if (!inBounds(tx, ty)) return undefined;
   return w.obj[idx(tx, ty)];
 }
@@ -60,6 +86,8 @@ const SOLID: Record<ObjectKind, boolean> = {
   sign: true,
   fence: true,
   shrine: true,
+  /** you can stand on the rim of the sinkhole — that is the point */
+  sinkhole: false,
 };
 
 export function isSolid(w: World, tx: number, ty: number): boolean {
@@ -78,7 +106,9 @@ export function isTillable(w: World, tx: number, ty: number): boolean {
 
 export function generateWorld(): World {
   const kind = new Uint8Array(MAP_W * MAP_H);
-  const obj: ObjectKind[] = new Array(MAP_W * MAP_H).fill(undefined as unknown as ObjectKind);
+  const obj: ObjectKind[] = new Array(MAP_W * MAP_H).fill(
+    undefined as unknown as ObjectKind,
+  );
   const waterTiles: number[] = [];
 
   const cx = MAP_W / 2;
@@ -109,7 +139,8 @@ export function generateWorld(): World {
         kind[i] = 0;
         if (rand01(tx, ty, 13) < 0.05) obj[i] = "rock";
       }
-      if (!isClearing(tx, ty) && !obj[i] && rand01(tx, ty, 17) < 0.3) obj[i] = "pine";
+      if (!isClearing(tx, ty) && !obj[i] && rand01(tx, ty, 17) < 0.3)
+        obj[i] = "pine";
     }
   }
 
@@ -162,13 +193,21 @@ export function generateWorld(): World {
     kind[idx(h.tx, h.ty)] = 0;
   }
 
+  // Sinkhole under the pond bank — the mouth of the Root Network.
+  const sinkhole = { tx: pond.x - 5, ty: pond.y + 5 };
+  obj[idx(sinkhole.tx, sinkhole.ty)] = "sinkhole";
+  kind[idx(sinkhole.tx, sinkhole.ty)] = 0;
+
   // Scatter decorations that do not block walking.
   for (let ty = 2; ty < MAP_H - 2; ty++) {
     for (let tx = 2; tx < MAP_W - 2; tx++) {
       const i = idx(tx, ty);
       if (obj[i] || kind[i] !== 0) continue;
-      const near = Math.hypot(tx - spawn.tx, ty - spawn.ty) + Math.hypot(tx - stall.tx, ty - stall.ty);
+      const near =
+        Math.hypot(tx - spawn.tx, ty - spawn.ty) +
+        Math.hypot(tx - stall.tx, ty - stall.ty);
       if (near < 3) continue;
+      if (Math.hypot(tx - sinkhole.tx, ty - sinkhole.ty) < 2) continue;
       const r = rnd();
       if (r < 0.03) obj[i] = "bush";
       else if (r < 0.045) obj[i] = "rock";
@@ -181,13 +220,21 @@ export function generateWorld(): World {
     obj,
     plots: new Map(),
     stall,
+    sinkhole,
     spawn,
     spiritHomes,
     waterTiles,
   };
 }
 
-function carvePath(kind: Uint8Array, obj: ObjectKind[], x0: number, y0: number, x1: number, y1: number): void {
+function carvePath(
+  kind: Uint8Array,
+  obj: ObjectKind[],
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): void {
   let x = x0;
   let y = y0;
   let guard = 0;

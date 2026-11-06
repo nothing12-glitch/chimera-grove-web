@@ -1,11 +1,23 @@
-import { CROPS, CROP_ORDER, type CropId } from "../data/crops";
+import {
+  CROPS,
+  CROP_ORDER,
+  NETWORK_ONLY_SEEDS,
+  type CropId,
+} from "../data/crops";
 import { SPIRITS, SPIRIT_ORDER, TRUST_MAX } from "../data/spirits";
 import { CAN_CAPACITY, DAY_LENGTH, type Game, type Slot } from "./state";
 import type { Hint } from "./systems";
 
 export type ShopAction = { type: "buy" | "sell"; crop: CropId; qty: number };
 
-export type SpiritView = { id: string; trust: number; want: CropId; fed: boolean };
+export type SpiritView = {
+  id: string;
+  trust: number;
+  want: CropId;
+  fed: boolean;
+};
+
+export type CaveView = { name: string; layer: number; tide: number };
 
 type IconResolver = (slot: Slot) => HTMLCanvasElement | null;
 
@@ -22,8 +34,22 @@ export class Hud {
   private shopRows = must<HTMLDivElement>("#shop-rows");
   private help = must<HTMLDivElement>("#help");
   private spiritBox = must<HTMLDivElement>("#spirits");
-  private spiritRows: { el: HTMLDivElement; dots: HTMLSpanElement; want: HTMLSpanElement }[] = [];
-  private slots: { el: HTMLButtonElement; canvas: HTMLCanvasElement; count: HTMLSpanElement; dry: HTMLSpanElement }[] = [];
+  private caveBox = must<HTMLDivElement>("#cave-view");
+  private caveDepth = must<HTMLSpanElement>("#cave-depth");
+  private caveNameEl = must<HTMLSpanElement>("#cave-name");
+  private tideFill = must<HTMLElement>("#cave-tide");
+  private tideLabel = must<HTMLSpanElement>("#cave-tide-text");
+  private spiritRows: {
+    el: HTMLDivElement;
+    dots: HTMLSpanElement;
+    want: HTMLSpanElement;
+  }[] = [];
+  private slots: {
+    el: HTMLButtonElement;
+    canvas: HTMLCanvasElement;
+    count: HTMLSpanElement;
+    dry: HTMLSpanElement;
+  }[] = [];
 
   constructor(private icon: IconResolver) {
     const layout = [
@@ -74,7 +100,9 @@ export class Hud {
 
   onShopAction(cb: (a: ShopAction) => void): void {
     this.shopRows.addEventListener("click", (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-act]");
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
+        "button[data-act]",
+      );
       if (!b) return;
       cb({
         type: b.dataset.act as "buy" | "sell",
@@ -89,15 +117,25 @@ export class Hud {
   }
 
   onHelpToggle(cb: (open: boolean) => void): void {
-    must<HTMLButtonElement>("#btn-help").addEventListener("click", () => cb(true));
-    must<HTMLButtonElement>("#help-close").addEventListener("click", () => cb(false));
+    must<HTMLButtonElement>("#btn-help").addEventListener("click", () =>
+      cb(true),
+    );
+    must<HTMLButtonElement>("#help-close").addEventListener("click", () =>
+      cb(false),
+    );
   }
 
   onReset(cb: () => void): void {
     must<HTMLButtonElement>("#btn-reset").addEventListener("click", cb);
   }
 
-  refresh(g: Game, hint: Hint | null, readyCount: number, spirits: SpiritView[] = []): void {
+  refresh(
+    g: Game,
+    hint: Hint | null,
+    readyCount: number,
+    spirits: SpiritView[] = [],
+    cave: CaveView | null = null,
+  ): void {
     this.day.textContent = `День ${g.day}`;
     const hours = 8 + (g.dayTime / DAY_LENGTH) * 12;
     const hh = Math.floor(hours);
@@ -109,7 +147,18 @@ export class Hud {
     this.ready.textContent = readyCount ? `Готово до збору: ${readyCount}` : "";
 
     this.hint.classList.toggle("on", !!hint);
-    if (hint) this.hint.innerHTML = `<b>${escape(hint.key)}</b>${escape(hint.label)}`;
+    if (hint)
+      this.hint.innerHTML = `<b>${escape(hint.key)}</b>${escape(hint.label)}`;
+
+    this.caveBox.hidden = !cave;
+    if (cave) {
+      this.caveDepth.textContent = `Глибина ${cave.layer + 1}`;
+      this.caveNameEl.textContent = cave.name;
+      this.tideFill.style.width = `${Math.round(cave.tide * 100)}%`;
+      this.caveBox.classList.toggle("danger", cave.tide >= 0.62);
+      this.tideLabel.textContent =
+        cave.tide >= 0.62 ? "Прилив надходить!" : "Прилив спор";
+    }
 
     g.slots.forEach((slot, i) => {
       const cell = this.slots[i];
@@ -118,7 +167,10 @@ export class Hud {
       cell.el.classList.toggle("empty", slot.kind === "empty");
       const src = this.icon(slot);
       if (src) blit(cell.canvas, src);
-      else cell.canvas.getContext("2d")!.clearRect(0, 0, cell.canvas.width, cell.canvas.height);
+      else
+        cell.canvas
+          .getContext("2d")!
+          .clearRect(0, 0, cell.canvas.width, cell.canvas.height);
 
       let label = "";
       if (slot.kind === "seed") {
@@ -128,7 +180,12 @@ export class Hud {
         cell.el.dataset.label = `${CROPS[slot.crop].name} · ${CROPS[slot.crop].latin}`;
       } else {
         cell.count.classList.remove("zero");
-        cell.el.dataset.label = slot.kind === "tool" ? (slot.tool === "can" ? "Лійка" : "Мотика") : "Порожньо";
+        cell.el.dataset.label =
+          slot.kind === "tool"
+            ? slot.tool === "can"
+              ? "Лійка"
+              : "Мотика"
+            : "Порожньо";
       }
       cell.count.textContent = label;
       cell.dry.textContent =
@@ -149,7 +206,8 @@ export class Hud {
       }
       row.el.classList.toggle("fed", s.fed);
       row.el.classList.toggle("friend", s.trust >= TRUST_MAX);
-      row.dots.textContent = "●".repeat(s.trust) + "○".repeat(TRUST_MAX - s.trust);
+      row.dots.textContent =
+        "●".repeat(s.trust) + "○".repeat(TRUST_MAX - s.trust);
       row.want.textContent = s.fed ? "ситий" : CROPS[s.want].name;
     });
   }
@@ -174,12 +232,47 @@ export class Hud {
 
         const acts = document.createElement("div");
         acts.className = "acts";
-        acts.append(
-          btn("buy", crop, 1, `Купити 1 · ${def.seedCost}`, g.coins < def.seedCost),
-          btn("buy", crop, 5, `×5 · ${def.seedCost * 5}`, g.coins < def.seedCost * 5),
-          btn("sell", crop, 1, `Продати 1`, stock < 1),
-          btn("sell", crop, stock || 1, `Продати все · ${stock * def.sellPrice}`, stock < 1),
-        );
+        if (NETWORK_ONLY_SEEDS.includes(crop)) {
+          const note = document.createElement("span");
+          note.className = "nope";
+          note.textContent = "Спори лише з Мережі Коренів";
+          acts.append(
+            note,
+            btn("sell", crop, 1, "Продати 1", stock < 1),
+            btn(
+              "sell",
+              crop,
+              stock || 1,
+              `Продати все · ${stock * def.sellPrice}`,
+              stock < 1,
+            ),
+          );
+        } else {
+          acts.append(
+            btn(
+              "buy",
+              crop,
+              1,
+              `Купити 1 · ${def.seedCost}`,
+              g.coins < def.seedCost,
+            ),
+            btn(
+              "buy",
+              crop,
+              5,
+              `×5 · ${def.seedCost * 5}`,
+              g.coins < def.seedCost * 5,
+            ),
+            btn("sell", crop, 1, "Продати 1", stock < 1),
+            btn(
+              "sell",
+              crop,
+              stock || 1,
+              `Продати все · ${stock * def.sellPrice}`,
+              stock < 1,
+            ),
+          );
+        }
 
         row.append(icon, info, acts);
         return row;
@@ -200,7 +293,8 @@ export class Hud {
     el.className = `toast ${tone}`;
     el.textContent = text;
     this.toasts.append(el);
-    while (this.toasts.children.length > 5) this.toasts.firstElementChild?.remove();
+    while (this.toasts.children.length > 5)
+      this.toasts.firstElementChild?.remove();
     setTimeout(() => {
       el.classList.add("fade");
       setTimeout(() => el.remove(), 520);
@@ -208,7 +302,13 @@ export class Hud {
   }
 }
 
-function btn(act: "buy" | "sell", crop: CropId, qty: number, label: string, disabled: boolean): HTMLButtonElement {
+function btn(
+  act: "buy" | "sell",
+  crop: CropId,
+  qty: number,
+  label: string,
+  disabled: boolean,
+): HTMLButtonElement {
   const b = document.createElement("button");
   b.textContent = label;
   b.disabled = disabled;
@@ -234,5 +334,8 @@ function must<T extends HTMLElement>(sel: string): T {
 }
 
 function escape(s: string): string {
-  return s.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch] ?? ch);
+  return s.replace(
+    /[&<>]/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch] ?? ch,
+  );
 }

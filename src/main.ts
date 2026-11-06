@@ -6,6 +6,7 @@ import {
   wasPressed,
 } from "./core/input";
 import { buildSprite } from "./core/sprites";
+import { initSplash } from "./core/splash";
 import { HOE, WATERING_CAN } from "./data/art";
 import { caveName, type Cave } from "./data/roots";
 import { generateWorld, type World } from "./data/world";
@@ -57,7 +58,9 @@ import { spawnSpirits, stepSpirits, type Spirit } from "./game/spirits";
 const canvasEl = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvasEl) throw new Error("#game canvas missing");
 const canvas: HTMLCanvasElement = canvasEl;
+const splash = initSplash();
 
+splash?.stage("Проростає гай…");
 const world: World = generateWorld();
 let game: Game = newGame();
 const saved = loadGame();
@@ -110,6 +113,7 @@ if (saved) {
   }
 }
 
+splash?.stage("Крою пікселі…");
 const renderer = new Renderer(canvas, world);
 const fx: FX[] = [];
 
@@ -297,6 +301,7 @@ function resize(): void {
 
 let last = performance.now();
 let sinceSave = 0;
+let booted = false;
 
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -329,6 +334,11 @@ function frame(now: number): void {
 
   if (ctx.cave) renderer.drawCave(game, ctx.cave, run, fx, now / 1000);
   else renderer.draw(game, fx, now / 1000, spirits);
+  if (!booted) {
+    booted = true;
+    splash?.stage(`День ${game.day} · гай прокинувся`);
+    splash?.ready(showIntro);
+  }
   hud.refresh(
     game,
     currentHint(game, world, ctx),
@@ -357,23 +367,28 @@ attachInput(window);
 resize();
 hud.refresh(game, null, 0, spirits, null);
 
-if (saved) hud.toast(`Світанок дня ${game.day}. Город чекає на тебе.`, "info");
-else {
-  hud.toast("Ти вигнаний алхімік. Почни з Місячної Пелюстки.", "info");
-  hud.toast("Мотика — 1, лійка — 2, насіння — 3-7. Дія: E.", "info");
-  hud.toast(
-    "У гаю живуть три духи. Пригости їх урожаєм — вони віддячать.",
-    "info",
-  );
-  hud.toast(
-    "Провал біля озера веде в Мережу Коренів — там дозріває Порожній Капелюх.",
-    "info",
-  );
-  hud.toast(
-    "Казан просто на південь від прилавку: вари зілля з урожаю й пий перед стрибком.",
-    "info",
-  );
+/** Waits for the splash to fade, otherwise the first tips scroll by unseen. */
+function showIntro(): void {
+  if (saved)
+    hud.toast(`Світанок дня ${game.day}. Город чекає на тебе.`, "info");
+  else {
+    hud.toast("Ти вигнаний алхімік. Почни з Місячної Пелюстки.", "info");
+    hud.toast("Мотика — 1, лійка — 2, насіння — 3-7. Дія: E.", "info");
+    hud.toast(
+      "У гаю живуть три духи. Пригости їх урожаєм — вони віддячать.",
+      "info",
+    );
+    hud.toast(
+      "Провал біля озера веде в Мережу Коренів — там дозріває Порожній Капелюх.",
+      "info",
+    );
+    hud.toast(
+      "Казан просто на південь від прилавку: вари зілля з урожаю й пий перед стрибком.",
+      "info",
+    );
+  }
 }
+if (!splash) showIntro();
 commit(game, world, ctx);
 requestAnimationFrame(frame);
 
@@ -382,6 +397,7 @@ if (import.meta.env.DEV) {
     game,
     world,
     renderer,
+    splash,
     fx,
     events,
     hud,

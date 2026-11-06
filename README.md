@@ -4,6 +4,8 @@
 **Стек:** TypeScript + Vite + Canvas 2D, без ігрового рушія
 **Статус:** ферма + лісові духи + Мережа Коренів + алхімічний стіл (четвертий зріз)
 
+**▶️ Грати в браузері (без встановлення):** <https://nothing12-glitch.github.io/chimera-grove-web/>
+
 Web-версія проєкту [nothing12-glitch/chimera-grove](https://github.com/nothing12-glitch/chimera-grove) (там залишився лише дизайн-конспект для Godot).
 
 ![Грядка п'яти культур на світанку](docs/preview.png)
@@ -25,6 +27,10 @@ npm run build    # tsc --noEmit + vite build → dist/
 npm run typecheck
 npm run check:art
 ```
+
+## 🚀 Публікація
+
+`push` у `main` запускає `.github/workflows/pages.yml`: він збирає `dist/` і викладає його на GitHub Pages за адресою <https://nothing12-glitch.github.io/chimera-grove-web/>. Збірка в CI залежить від нативного бінаря `@rollup/rollup-linux-x64-gnu`, тому він закріплений в `optionalDependencies` — lockfile, згенерований на Windows, сам його не додає (npm/cli#4828).
 
 ## 🎮 Керування
 

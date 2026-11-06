@@ -14,5 +14,9 @@
   "devDependencies": {
     "typescript": "^5.9.3",
     "vite": "^7.2.4"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.68.0",
+    "@rollup/rollup-linux-x64-musl": "4.68.0"
   }
 }

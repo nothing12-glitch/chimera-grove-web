@@ -24,9 +24,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # npm ci drops the linux rollup native binary when the lockfile was made
-      # on Windows (npm/cli#4828); a plain install fills in platform optionals.
-      - run: npm install --no-audit --no-fund
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

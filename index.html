@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Chimera Grove — Химерний Гай</title>
+    <meta name="description" content="2D pixel art alchemy farming sim у браузері: вирощуйте магічні рослини, варіть зілля, досліджуйте Мережу Коренів." />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" width="960" height="540"></canvas>
+
+      <div id="hud">
+        <div class="bar top">
+          <div class="stat" id="stat-day">День 1</div>
+          <div class="stat" id="stat-clock">08:00</div>
+          <div class="stat coins" id="stat-coins">60</div>
+          <div class="stat water" id="stat-water">4/4</div>
+        </div>
+
+        <div class="ready" id="stat-ready"></div>
+
+        <div class="hint" id="hint"></div>
+
+        <div class="hotbar" id="hotbar"></div>
+
+        <div class="toasts" id="toasts"></div>
+
+        <button class="ghost help-btn" id="btn-help">Довідка · H</button>
+      </div>
+
+      <div class="modal" id="shop" hidden>
+        <div class="modal-card">
+          <header>
+            <h2>Прилавок Старого Лісу</h2>
+            <button class="ghost" id="shop-close">Закрити · E</button>
+          </header>
+          <p class="lede">Сонцязь — валюта алхіміків. Купуй насіння, продай урожай.</p>
+          <div class="shop-rows" id="shop-rows"></div>
+        </div>
+      </div>
+
+      <div class="modal" id="help" hidden>
+        <div class="modal-card">
+          <header>
+            <h2>Як грати</h2>
+            <button class="ghost" id="help-close">Закрити · H</button>
+          </header>
+          <ul class="keys">
+            <li><b>WASD</b> / стрілки — ходити</li>
+            <li><b>1–8</b> або <b>колесо миші</b> — вибрати знаряддя чи насіння</li>
+            <li><b>E</b> / <b>Пробіл</b> — використати біля персонажа: розорати, посіяти, полити, наповнити лійку, зібрати, торгувати</li>
+            <li><b>F</b> — чекати до світанку (рослини ростуть на світанку, якщо в землі є волога)</li>
+            <li><b>H</b> — ця довідка, <b>Esc</b> — закрити вікно</li>
+          </ul>
+          <div class="loop">
+            <h3>Цикл гри</h3>
+            <p>Розорати → Посіяти → Полить → Перечекати ніч → Зібрати → Продати → Купити дорожче насіння.</p>
+          </div>
+          <div class="tips">
+            <h3>Поради</h3>
+            <p>Порожній Капелюх і Шепотна Лоза ростуть довго, але платять удвічі більше. Палаючий Корінь п'є воду двічі на добу — поливай двічі або не чіпай, доки матимеш повну лійку.</p>
+          </div>
+          <button class="danger" id="btn-reset">Скинути збереження</button>
+        </div>
+      </div>
+
+      <script type="module" src="/src/main.ts"></script>
+    </div>
+  </body>
+</html>

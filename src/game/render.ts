@@ -1,0 +1,356 @@
+import { buildSprite, buildTinted, flipX } from "../core/sprites";
+import {
+  BUSH,
+  FENCE,
+  GRASS_TUFT,
+  PINE,
+  PLAYER_DOWN,
+  PLAYER_DOWN_WALK,
+  PLAYER_SIDE,
+  PLAYER_UP,
+  ROCK,
+  ROUND_TREE,
+  SEED_STALL,
+  SIGNPOST,
+  STUMP,
+  TILLED,
+  TILLED_WET_PAL,
+  WATER_0,
+  WATER_1,
+  WILD_FLOWER,
+} from "../data/art";
+import { CROPS } from "../data/crops";
+import {
+  MAP_H,
+  MAP_W,
+  TILE,
+  idx,
+  objectAt,
+  tileAt,
+  type World,
+} from "../data/world";
+import { DAY_LENGTH, type Game } from "./state";
+import { stageOf, type FX } from "./systems";
+
+export const VIEW_W = 320;
+export const VIEW_H = 180;
+
+const EARTH_PAL = { r: "#4a3120", e: "#6b4728", s: "#8a6038", c: "#ffffff", d: "#ffffff" };
+
+export function spriteFor(kind: string): HTMLCanvasElement {
+  switch (kind) {
+    case "pine":
+      return buildSprite("pine", PINE);
+    case "round_tree":
+      return buildSprite("round_tree", ROUND_TREE);
+    case "bush":
+      return buildSprite("bush", BUSH);
+    case "rock":
+      return buildSprite("rock", ROCK);
+    case "stump":
+      return buildSprite("stump", STUMP);
+    case "stall":
+      return buildSprite("stall", SEED_STALL);
+    case "sign":
+      return buildSprite("sign", SIGNPOST);
+    case "fence":
+      return buildSprite("fence", FENCE);
+    default:
+      return buildSprite("tuft", GRASS_TUFT);
+  }
+}
+
+const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
+  pine: { oy: -16, base: 16 },
+  round_tree: { oy: -12, base: 16 },
+  stall: { oy: -16, base: 16 },
+  sign: { oy: -4, base: 20 },
+  bush: { oy: 4, base: 16 },
+  rock: { oy: 6, base: 16 },
+  stump: { oy: 2, base: 16 },
+  fence: { oy: 0, base: 16 },
+};
+
+export class Renderer {
+  private ground: HTMLCanvasElement;
+  private view: HTMLCanvasElement;
+  private vctx: CanvasRenderingContext2D;
+  private dctx: CanvasRenderingContext2D;
+  private water: [HTMLCanvasElement, HTMLCanvasElement];
+  private soil: [HTMLCanvasElement, HTMLCanvasElement];
+
+  constructor(private canvas: HTMLCanvasElement, private world: World) {
+    this.ground = this.buildGround();
+    this.view = document.createElement("canvas");
+    this.view.width = VIEW_W;
+    this.view.height = VIEW_H;
+    this.vctx = this.view.getContext("2d")!;
+    this.vctx.imageSmoothingEnabled = false;
+    this.dctx = canvas.getContext("2d")!;
+    this.water = [buildSprite("water0", WATER_0), buildSprite("water1", WATER_1)];
+    this.soil = [buildSprite("soil", TILLED), buildTinted("soil-wet", TILLED, TILLED_WET_PAL)];
+  }
+
+  private buildGround(): HTMLCanvasElement {
+    const cvs = document.createElement("canvas");
+    cvs.width = MAP_W * TILE;
+    cvs.height = MAP_H * TILE;
+    const c = cvs.getContext("2d")!;
+    const w = this.world;
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        const kind = tileAt(w, tx, ty);
+        const x = tx * TILE;
+        const y = ty * TILE;
+        if (kind === "water") {
+          c.fillStyle = "#123a4e";
+          c.fillRect(x, y, TILE, TILE);
+          continue;
+        }
+        if (kind === "path") {
+          c.fillStyle = "#6d5236";
+          c.fillRect(x, y, TILE, TILE);
+          dab(c, tx, ty, "#87663f", 5, 1);
+          dab(c, tx, ty, "#5b4227", 4, 2);
+          continue;
+        }
+        // Grass: one base tone plus low-frequency patches. Per-tile tones read as a grid.
+        const patch = hash(tx >> 2, ty >> 2);
+        c.fillStyle = patch < 0.3 ? "#33532c" : patch < 0.65 ? "#35562e" : "#385a30";
+        c.fillRect(x, y, TILE, TILE);
+        dab(c, tx, ty, "#47733f", 7, 3);
+        dab(c, tx, ty, "#284222", 5, 4);
+      }
+    }
+    // Damp shore where land meets the pond, so the water does not end on a hard edge.
+    for (let ty = 1; ty < MAP_H - 1; ty++) {
+      for (let tx = 1; tx < MAP_W - 1; tx++) {
+        const k = tileAt(w, tx, ty);
+        if (k === "water") continue;
+        const x = tx * TILE;
+        const y = ty * TILE;
+        for (const [dx, dy] of [
+          [0, -1],
+          [0, 1],
+          [-1, 0],
+          [1, 0],
+        ] as const) {
+          if (tileAt(w, tx + dx, ty + dy) !== "water") continue;
+          c.fillStyle = "#22404c";
+          if (dy === -1) c.fillRect(x, y, TILE, 2);
+          else if (dy === 1) c.fillRect(x, y + TILE - 2, TILE, 2);
+          else if (dx === -1) c.fillRect(x, y, 2, TILE);
+          else c.fillRect(x + TILE - 2, y, 2, TILE);
+        }
+      }
+    }
+    // Decoration pass: tufts and flowers only where nothing else stands.
+    for (let ty = 1; ty < MAP_H - 1; ty++) {
+      for (let tx = 1; tx < MAP_W - 1; tx++) {
+        if (tileAt(w, tx, ty) !== "grass" || objectAt(w, tx, ty)) continue;
+        const r = hash(tx, ty);
+        if (r < 0.06) c.drawImage(spriteFor("tuft"), tx * TILE, ty * TILE - 2);
+        else if (r > 0.94) c.drawImage(buildSprite("flower", WILD_FLOWER), tx * TILE, ty * TILE - 2);
+      }
+    }
+    return cvs;
+  }
+
+  cropSprite(cropId: string, stage: number): HTMLCanvasElement {
+    const def = CROPS[cropId as keyof typeof CROPS];
+    const shape = def.shapes[stage];
+    const pal = stage === 0 ? { ...EARTH_PAL, ...def.palettes[0] } : def.palettes[stage];
+    return buildTinted(`${cropId}:${stage}`, shape, pal);
+  }
+
+  playerSprite(g: Game): HTMLCanvasElement {
+    const step = Math.floor(g.anim) % 2;
+    if (g.dir === "up") return buildSprite("p_up", g.moving && step ? PLAYER_DOWN_WALK : PLAYER_UP);
+    if (g.dir === "down") return buildSprite("p_down", g.moving && step ? PLAYER_DOWN_WALK : PLAYER_DOWN);
+    const side = buildSprite("p_side", PLAYER_SIDE);
+    if (g.dir === "left") return flipX(side);
+    return side;
+  }
+
+  draw(g: Game, fx: FX[], t: number): void {
+    const c = this.vctx;
+    const w = this.world;
+    const cam = this.camera(g);
+    c.clearRect(0, 0, VIEW_W, VIEW_H);
+    c.save();
+    c.translate(-cam.x + cam.shakeX, -cam.y + cam.shakeY);
+
+    c.drawImage(this.ground, 0, 0);
+
+    // Animated water with per-tile glints so the pond never looks like a repeating grid.
+    const base = Math.floor(t * 1.6) % 2;
+    for (const i of w.waterTiles) {
+      const tx = i % MAP_W;
+      const ty = Math.floor(i / MAP_W);
+      if (!visible(tx, ty, cam)) continue;
+      const x = tx * TILE;
+      const y = ty * TILE;
+      const h = hash(tx, ty);
+      c.drawImage(this.water[(base + (h > 0.5 ? 1 : 0)) % 2], x, y);
+      const glint = Math.sin(t * 1.9 + h * 12.6);
+      if (glint > 0.25) {
+        c.globalAlpha = 0.35 + 0.45 * glint;
+        c.fillStyle = "#9fd8e8";
+        c.fillRect(x + 2 + Math.floor(h * 10), y + 2 + Math.floor(hash(tx + 7, ty + 3) * 10), 2, 1);
+        c.globalAlpha = 1;
+      }
+    }
+
+    // Soil + crops.
+    for (const [i, plot] of w.plots) {
+      const tx = i % MAP_W;
+      const ty = Math.floor(i / MAP_W);
+      if (!visible(tx, ty, cam)) continue;
+      c.drawImage(plot.moisture > 0 ? this.soil[1] : this.soil[0], tx * TILE, ty * TILE);
+      if (plot.crop) {
+        const stage = stageOf(plot);
+        const bob = Math.sin(t * 1.7 + plot.sway * 6) * (stage === 3 ? 0.6 : 0.3);
+        c.drawImage(this.cropSprite(plot.crop, stage), tx * TILE, ty * TILE + Math.round(bob));
+      }
+    }
+
+    // Y-sorted tall objects and the player.
+    type Item = { y: number; draw(): void };
+    const items: Item[] = [];
+    for (let ty = Math.max(0, Math.floor(cam.y / TILE) - 2); ty < Math.min(MAP_H, cam.y / TILE + 15); ty++) {
+      for (let tx = Math.max(0, Math.floor(cam.x / TILE) - 1); tx < Math.min(MAP_W, cam.x / TILE + 22); tx++) {
+        const o = objectAt(w, tx, ty);
+        if (!o) continue;
+        const spr = spriteFor(o);
+        const anchor = OBJ_ANCHOR[o] ?? { oy: 0, base: 16 };
+        // Sub-pixel-grid jitter so the forest wall doesn't read as a perfect lattice.
+        const x = tx * TILE + Math.round((hash(tx, ty) - 0.5) * 5);
+        const y = ty * TILE + anchor.oy + Math.round((hash(tx + 31, ty + 17) - 0.5) * 3);
+        items.push({
+          y: ty * TILE + anchor.base,
+          draw: () => {
+            shadow(c, x + 8, y + spr.height - 2, o === "bush" ? 6 : 5);
+            c.drawImage(spr, x, y);
+          },
+        });
+      }
+    }
+    const px = Math.round(g.px);
+    const py = Math.round(g.py);
+    const playerSpr = this.playerSprite(g);
+    items.push({
+      y: py + 20,
+      draw: () => {
+        shadow(c, px + 8, py + 20, 5);
+        c.drawImage(playerSpr, px, py);
+      },
+    });
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.draw();
+
+    for (const p of fx) {
+      c.globalAlpha = Math.min(1, p.life * 2.5);
+      c.fillStyle = p.color;
+      c.fillRect(Math.round(p.x), Math.round(p.y), 2, 2);
+      c.globalAlpha = 1;
+    }
+
+    c.restore();
+    this.drawLight(g, t);
+    this.present();
+  }
+
+  private drawLight(g: Game, t: number): void {
+    const c = this.vctx;
+    const p = Math.min(1, g.dayTime / DAY_LENGTH);
+    let tint = "rgba(0,0,0,0)";
+    if (p < 0.12) tint = `rgba(255,196,120,${0.2 - p})`;
+    else if (p > 0.72) {
+      const k = (p - 0.72) / 0.28;
+      tint = `rgba(${Math.round(30 + 60 * (1 - k))},${Math.round(30 + 20 * (1 - k))},${Math.round(90 - 20 * k)},${(0.12 + 0.45 * k).toFixed(3)})`;
+    }
+    if (g.skip > 0) tint = `rgba(6,8,20,${0.55 + 0.35 * Math.sin(t * 6)})`;
+    c.fillStyle = tint;
+    c.fillRect(0, 0, VIEW_W, VIEW_H);
+    const vg = c.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.42, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.95);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(4,7,10,0.42)");
+    c.fillStyle = vg;
+    c.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
+
+  private camera(g: Game): { x: number; y: number; shakeX: number; shakeY: number } {
+    const maxX = MAP_W * TILE - VIEW_W;
+    const maxY = MAP_H * TILE - VIEW_H;
+    const x = clamp(Math.round(g.px + 8 - VIEW_W / 2), 0, maxX);
+    const y = clamp(Math.round(g.py + 12 - VIEW_H / 2), 0, maxY);
+    const s = this.shake;
+    return {
+      x,
+      y,
+      shakeX: s > 0 ? Math.round(Math.sin(s * 42) * s) : 0,
+      shakeY: s > 0 ? Math.round(Math.cos(s * 37) * s * 0.6) : 0,
+    };
+  }
+
+  shake = 0;
+
+  private present(): void {
+    const d = this.dctx;
+    const scale = Math.max(1, Math.floor(Math.min(this.canvas.width / VIEW_W, this.canvas.height / VIEW_H)));
+    const w = VIEW_W * scale;
+    const h = VIEW_H * scale;
+    d.imageSmoothingEnabled = false;
+    d.fillStyle = "#0a0f12";
+    d.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    d.drawImage(this.view, Math.round((this.canvas.width - w) / 2), Math.round((this.canvas.height - h) / 2), w, h);
+  }
+
+  get viewCanvas(): HTMLCanvasElement {
+    return this.view;
+  }
+}
+
+function visible(tx: number, ty: number, cam: { x: number; y: number }): boolean {
+  return tx * TILE + TILE > cam.x - 24 && tx * TILE < cam.x + VIEW_W + 8 && ty * TILE + TILE > cam.y - 20 && ty * TILE < cam.y + VIEW_H + 8;
+}
+
+function shadow(c: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  c.globalAlpha = 0.28;
+  c.fillStyle = "#0c1208";
+  c.beginPath();
+  c.ellipse(x, y, r, Math.max(2, r / 2.4), 0, 0, Math.PI * 2);
+  c.fill();
+  c.globalAlpha = 1;
+}
+
+function dab(c: CanvasRenderingContext2D, tx: number, ty: number, color: string, count: number, salt: number): void {
+  c.fillStyle = color;
+  for (let n = 0; n < count; n++) {
+    const h = hash(tx * 31 + n, ty * 17 + salt);
+    const x = tx * TILE + Math.floor(h * (TILE - 2));
+    const y = ty * TILE + Math.floor(hash(tx + n, ty * 7 - salt) * (TILE - 2));
+    c.fillRect(x, y, 2, 1);
+  }
+}
+
+function hash(x: number, y: number): number {
+  let h = Math.imul(x ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(y ^ 0xc2b2ae35, 0x27d4eb2d);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+export function loadWorldFromSave(w: World, kind: number[]): void {
+  w.kind.set(Uint8Array.from(kind));
+  w.waterTiles.length = 0;
+  for (let i = 0; i < kind.length; i++) {
+    if (kind[i] === 2) w.waterTiles.push(i);
+    const ty = Math.floor(i / MAP_W);
+    const tx = i % MAP_W;
+    if (kind[i] === 3 && !w.plots.has(idx(tx, ty))) w.plots.set(idx(tx, ty), { moisture: 0, points: 0, sway: 0 });
+  }
+}

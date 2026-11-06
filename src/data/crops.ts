@@ -70,7 +70,7 @@ export const CROPS: Record<CropId, CropDef> = {
   },
   glass_fern: {
     id: "glass_fern",
-    name: "Скляний Папороть",
+    name: "Скляна Папороть",
     latin: "Glass Fern",
     pointsPerStage: 2,
     matureAt: 6,

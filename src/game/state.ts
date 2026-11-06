@@ -1,4 +1,5 @@
 import type { CropId } from "../data/crops";
+import type { SpiritId } from "../data/spirits";
 
 export type ToolKind = "hoe" | "can";
 export type Slot = { kind: "tool"; tool: ToolKind } | { kind: "seed"; crop: CropId } | { kind: "empty" };
@@ -22,6 +23,8 @@ export type Save = {
   seeds: Record<CropId, number>;
   harvest: Record<CropId, number>;
   plots: [number, number, number, CropId?, number?][];
+  /** [species, x, y, dir, trust, want] — absent in saves written before spirits existed */
+  spirits?: [SpiritId, number, number, Dir, number, CropId][];
 };
 
 export type Dir = "down" | "up" | "left" | "right";
@@ -90,7 +93,12 @@ export function newGame(): Game {
   };
 }
 
-export function saveGame(g: Game, kind: Uint8Array, plots: Save["plots"]): void {
+export function saveGame(
+  g: Game,
+  kind: Uint8Array,
+  plots: Save["plots"],
+  spirits: Save["spirits"],
+): void {
   const data: Save = {
     v: 1,
     px: g.px,
@@ -105,6 +113,7 @@ export function saveGame(g: Game, kind: Uint8Array, plots: Save["plots"]): void 
     seeds: g.seeds,
     harvest: g.harvest,
     plots,
+    spirits,
   };
   try {
     localStorage.setItem(KEY, JSON.stringify({ game: data, kind: Array.from(kind) }));

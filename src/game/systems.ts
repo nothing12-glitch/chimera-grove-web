@@ -8,14 +8,9 @@ import {
   type Plot,
   type World,
 } from "../data/world";
-import {
-  CAN_CAPACITY,
-  DAY_LENGTH,
-  MOISTURE_MAX,
-  saveGame,
-  type Dir,
-  type Game,
-} from "./state";
+import { CAN_CAPACITY, DAY_LENGTH, MOISTURE_MAX, saveGame, type Dir, type Game } from "./state";
+import { SPIRITS, TRUST_MAX, type SpiritId } from "../data/spirits";
+import { feedSpirit, spiritDawn, spiritInReach, type Spirit } from "./spirits";
 
 export type FX = {
   x: number;
@@ -81,8 +76,16 @@ function walkable(w: World, x: number, y: number): boolean {
 
 export type Hint = { label: string; key: string };
 
-export function currentHint(g: Game, w: World): Hint | null {
+export function currentHint(g: Game, w: World, spirits: Spirit[]): Hint | null {
   if (g.shopOpen) return null;
+  const reach = spiritInReach(g, spirits);
+  if (reach) {
+    const def = SPIRITS[reach.id];
+    return {
+      key: "E",
+      label: reach.fed ? `${def.name} ситий · довіра ${reach.trust}/${TRUST_MAX}` : `Пригостити: ${def.name} хоче «${CROPS[reach.want].name}»`,
+    };
+  }
   if (nearStall(g, w)) return { key: "E", label: "Відкрити прилавок" };
   const { tx, ty } = facingTile(g);
   const plot = w.plots.get(idx(tx, ty));
@@ -113,9 +116,15 @@ export function stageOf(plot: Plot): number {
   return plot.points >= def.matureAt ? 3 : Math.min(2, stage);
 }
 
-/** Primary interaction: till / plant / water / refill / harvest / open shop. */
-export function interact(g: Game, w: World, ev: Events): void {
+/** Primary interaction: feed a spirit / till / plant / water / refill / harvest / open shop. */
+export function interact(g: Game, w: World, ev: Events, spirits: Spirit[]): void {
   if (g.shopOpen) return;
+  const reach = spiritInReach(g, spirits);
+  if (reach) {
+    feedSpirit(reach, g, ev);
+    commit(g, w, spirits);
+    return;
+  }
   if (nearStall(g, w)) {
     g.shopOpen = true;
     ev.toast("Прилавок стародавньої торгівлі", "info");
@@ -208,7 +217,7 @@ export function interact(g: Game, w: World, ev: Events): void {
 }
 
 /** Dawn tick: every watered plot grows; moisture drains. */
-export function advanceDay(g: Game, w: World, ev: Events): void {
+export function advanceDay(g: Game, w: World, ev: Events, spirits: Spirit[]): void {
   g.day += 1;
   g.dayTime = 0;
   let grew = 0;
@@ -227,7 +236,8 @@ export function advanceDay(g: Game, w: World, ev: Events): void {
   if (ready > 0) ev.toast(`${ready} грядок дозріло. Час збирати!`, "good");
   else if (grew) ev.toast(`День ${g.day}: ${grew} грядок виросло`);
   if (dried) ev.toast(`${dried} грядкам потрібна вода`, "bad");
-  commit(g, w);
+  spiritDawn(spirits, g, w, ev);
+  commit(g, w, spirits);
 }
 
 export function countReady(w: World): number {
@@ -236,18 +246,18 @@ export function countReady(w: World): number {
   return n;
 }
 
-export function tickTime(g: Game, w: World, dt: number, ev: Events): void {
+export function tickTime(g: Game, w: World, dt: number, ev: Events, spirits: Spirit[]): void {
   if (g.skip > 0) {
     g.skip -= dt;
     g.dayTime += dt * (DAY_LENGTH / 0.5);
     if (g.dayTime >= DAY_LENGTH || g.skip <= 0) {
       g.skip = 0;
-      advanceDay(g, w, ev);
+      advanceDay(g, w, ev, spirits);
     }
     return;
   }
   g.dayTime += dt;
-  if (g.dayTime >= DAY_LENGTH) advanceDay(g, w, ev);
+  if (g.dayTime >= DAY_LENGTH) advanceDay(g, w, ev, spirits);
 }
 
 export function startSkip(g: Game, ev: Events): void {
@@ -256,24 +266,34 @@ export function startSkip(g: Game, ev: Events): void {
   ev.toast("Алхімік чекає світанку…", "info");
 }
 
-export function commit(g: Game, w: World): void {
+export function commit(g: Game, w: World, spirits: Spirit[]): void {
   const plots = [...w.plots.entries()].map(
     ([i, p]) => [i, p.moisture, p.points, p.crop, p.sway] as [number, number, number, CropId | undefined, number],
   );
-  saveGame(g, w.kind, plots);
+  const sp = spirits.map(
+    (s) => [s.id, Math.round(s.x), Math.round(s.y), s.dir, s.trust, s.want] as [
+      SpiritId,
+      number,
+      number,
+      Dir,
+      number,
+      CropId,
+    ],
+  );
+  saveGame(g, w.kind, plots, sp);
 }
 
-export function sellStock(g: Game, w: World, crop: CropId, qty: number, ev: Events): void {
+export function sellStock(g: Game, w: World, crop: CropId, qty: number, ev: Events, spirits: Spirit[]): void {
   const n = Math.min(qty, g.harvest[crop]);
   if (n <= 0) return;
   const gain = n * CROPS[crop].sellPrice;
   g.harvest[crop] -= n;
   g.coins += gain;
   ev.toast(`Продано ${n} × ${CROPS[crop].name} за ${gain} сонцязь`, "good");
-  commit(g, w);
+  commit(g, w, spirits);
 }
 
-export function buySeeds(g: Game, w: World, crop: CropId, qty: number, ev: Events): void {
+export function buySeeds(g: Game, w: World, crop: CropId, qty: number, ev: Events, spirits: Spirit[]): void {
   const cost = CROPS[crop].seedCost * qty;
   if (g.coins < cost) {
     ev.toast(`Бракує ${cost - g.coins} сонцязь`, "bad");
@@ -282,5 +302,5 @@ export function buySeeds(g: Game, w: World, crop: CropId, qty: number, ev: Event
   g.coins -= cost;
   g.seeds[crop] += qty;
   ev.toast(`Куплено ${qty} насіння «${CROPS[crop].name}»`, "good");
-  commit(g, w);
+  commit(g, w, spirits);
 }

@@ -779,3 +779,166 @@ export const COIN = rects(8, 8, [
   [2, 6, 4, 1, "#8a6a2f"],
 ]);
 
+/* ---------- Forest spirits ---------- */
+
+const BOAR = "#6b4728";
+const BOAR_LIT = "#8a6038";
+const BOAR_DARK = "#3a2415";
+const MOSS = "#4e8043";
+const MOSS_LIT = "#77ad5c";
+const SNOUT = "#b06b6b";
+const SHADOW_LINE = "#241408";
+
+/** Moss Boarlet — a piglet chimera with a fern growing out of its back. Faces left. */
+export const MOSS_BOAR: Sprite = rects(16, 14, [
+  [8, 2, 1, 2, MOSS],
+  [7, 3, 1, 1, MOSS_LIT],
+  [9, 3, 1, 1, MOSS_LIT],
+  [4, 4, 10, 1, MOSS],
+  [5, 3, 3, 1, MOSS_LIT],
+  [3, 4, 1, 1, "#5a3a22"],
+  [1, 5, 3, 4, BOAR_LIT],
+  [3, 5, 11, 5, BOAR],
+  [4, 5, 9, 2, BOAR_LIT],
+  [0, 7, 2, 2, SNOUT],
+  [2, 6, 1, 1, SHADOW_LINE],
+  [3, 10, 9, 1, SHADOW_LINE],
+  [4, 11, 1, 3, BOAR_DARK],
+  [7, 11, 1, 3, BOAR_DARK],
+  [10, 11, 1, 3, BOAR_DARK],
+  [13, 11, 1, 2, BOAR_DARK],
+]);
+
+export const MOSS_BOAR_STEP: Sprite = rects(16, 14, [
+  [8, 2, 1, 2, MOSS],
+  [7, 3, 1, 1, MOSS_LIT],
+  [9, 3, 1, 1, MOSS_LIT],
+  [4, 4, 10, 1, MOSS],
+  [5, 3, 3, 1, MOSS_LIT],
+  [3, 4, 1, 1, "#5a3a22"],
+  [1, 5, 3, 4, BOAR_LIT],
+  [3, 5, 11, 5, BOAR],
+  [4, 5, 9, 2, BOAR_LIT],
+  [0, 7, 2, 2, SNOUT],
+  [2, 6, 1, 1, SHADOW_LINE],
+  [3, 10, 9, 1, SHADOW_LINE],
+  [5, 11, 1, 3, BOAR_DARK],
+  [8, 11, 1, 2, BOAR_DARK],
+  [11, 11, 1, 3, BOAR_DARK],
+  [13, 11, 1, 1, BOAR_DARK],
+]);
+
+const MOTH = "#9fe3d6";
+const MOTH_LIT = "#d8fff7";
+const MOTH_DARK = "#4f9b8f";
+const MOTH_LINE = "#1b3a3a";
+
+/** Glass Moth — a moth whose wings are thin sheets of glazier's fern leaf. */
+export const GLASS_MOTH: Sprite = rects(16, 14, [
+  [5, 1, 1, 1, MOTH_LINE],
+  [6, 2, 1, 1, MOTH_LINE],
+  [10, 1, 1, 1, MOTH_LINE],
+  [9, 2, 1, 1, MOTH_LINE],
+  [1, 3, 6, 6, MOTH],
+  [9, 3, 6, 6, MOTH],
+  [1, 3, 6, 1, MOTH_LIT],
+  [9, 3, 6, 1, MOTH_LIT],
+  [1, 8, 6, 1, MOTH_LINE],
+  [9, 8, 6, 1, MOTH_LINE],
+  [1, 4, 1, 4, MOTH_LINE],
+  [14, 4, 1, 4, MOTH_LINE],
+  [3, 5, 1, 3, MOTH_DARK],
+  [12, 5, 1, 3, MOTH_DARK],
+  [7, 4, 2, 6, MOTH_DARK],
+  [7, 4, 1, 4, MOTH],
+  [7, 3, 1, 1, MOTH_LIT],
+  [8, 3, 1, 1, MOTH_LIT],
+]);
+
+export const GLASS_MOTH_W: Sprite = rects(16, 14, [
+  [5, 2, 1, 1, MOTH_LINE],
+  [6, 3, 1, 1, MOTH_LINE],
+  [10, 2, 1, 1, MOTH_LINE],
+  [9, 3, 1, 1, MOTH_LINE],
+  [1, 5, 6, 5, MOTH],
+  [9, 5, 6, 5, MOTH],
+  [1, 5, 6, 1, MOTH_LIT],
+  [9, 5, 6, 1, MOTH_LIT],
+  [1, 9, 6, 1, MOTH_LINE],
+  [9, 9, 6, 1, MOTH_LINE],
+  [1, 6, 1, 3, MOTH_LINE],
+  [14, 6, 1, 3, MOTH_LINE],
+  [3, 7, 1, 2, MOTH_DARK],
+  [12, 7, 1, 2, MOTH_DARK],
+  [7, 4, 2, 6, MOTH_DARK],
+  [7, 4, 1, 4, MOTH],
+  [7, 3, 1, 1, MOTH_LIT],
+  [8, 3, 1, 1, MOTH_LIT],
+]);
+
+const ASH = "#8b9299";
+const ASH_LIT = "#b6bcc2";
+const ASH_DARK = "#6b7178";
+const ASH_LINE = "#2a2c31";
+const EMBER = "#e0603a";
+const EMBER_LIT = "#ffc45e";
+
+/** Ash Fox — a fox of cold coals; its tail still remembers the fire. Faces left. */
+export const ASH_FOX: Sprite = rects(16, 14, [
+  [10, 4, 5, 3, EMBER],
+  [14, 4, 2, 2, EMBER_LIT],
+  [2, 3, 1, 2, ASH_DARK],
+  [4, 3, 1, 1, ASH_DARK],
+  [1, 4, 4, 4, ASH],
+  [4, 5, 8, 4, ASH],
+  [5, 5, 6, 2, ASH_LIT],
+  [0, 6, 2, 2, ASH_LIT],
+  [2, 5, 1, 1, EMBER_LIT],
+  [4, 9, 8, 1, ASH_LINE],
+  [5, 10, 1, 3, ASH_DARK],
+  [8, 10, 1, 3, ASH_DARK],
+  [11, 10, 1, 2, ASH_DARK],
+]);
+
+export const ASH_FOX_STEP: Sprite = rects(16, 14, [
+  [10, 3, 5, 3, EMBER],
+  [14, 3, 2, 2, EMBER_LIT],
+  [2, 3, 1, 2, ASH_DARK],
+  [4, 3, 1, 1, ASH_DARK],
+  [1, 4, 4, 4, ASH],
+  [4, 5, 8, 4, ASH],
+  [5, 5, 6, 2, ASH_LIT],
+  [0, 6, 2, 2, ASH_LIT],
+  [2, 5, 1, 1, EMBER_LIT],
+  [4, 9, 8, 1, ASH_LINE],
+  [6, 10, 1, 3, ASH_DARK],
+  [9, 10, 1, 2, ASH_DARK],
+  [11, 10, 1, 3, ASH_DARK],
+]);
+
+const STONE = "#6b7178";
+const STONE_LIT = "#8b9299";
+const STONE_DARK = "#2a2c31";
+const RUNE = "#8f6fd6";
+const RUNE_LIT = "#e3d1ff";
+
+/** Spirit dolmen: the grove's three spirits sleep under this cap. */
+export const SHRINE: Sprite = rects(16, 24, [
+  [2, 5, 4, 1, MOSS],
+  [9, 5, 5, 1, MOSS],
+  [3, 4, 2, 1, MOSS_LIT],
+  [1, 6, 14, 4, STONE],
+  [2, 6, 12, 1, STONE_LIT],
+  [1, 9, 14, 1, STONE_DARK],
+  [3, 10, 3, 10, STONE],
+  [10, 10, 3, 10, STONE],
+  [3, 10, 1, 10, STONE_LIT],
+  [10, 10, 1, 10, STONE_LIT],
+  [7, 11, 2, 4, RUNE],
+  [7, 12, 1, 2, RUNE_LIT],
+  [2, 20, 12, 3, STONE],
+  [3, 19, 10, 1, STONE_LIT],
+  [2, 22, 12, 1, STONE_DARK],
+]);
+
+

@@ -130,6 +130,69 @@ canvas#game {
   pointer-events: auto;
 }
 
+.spirits {
+  position: absolute;
+  right: 12px;
+  top: 54px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.spirit {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.spirit .sname {
+  color: var(--ink);
+}
+
+.spirit .dots {
+  color: #8f6fd6;
+  letter-spacing: 2px;
+}
+
+.spirit .swant {
+  color: var(--ink-dim);
+}
+
+.spirit.fed .swant {
+  color: #6d8f6a;
+}
+
+.spirit.friend {
+  border-color: #4b3a6b;
+}
+
+.spirit::after {
+  content: attr(data-label);
+  position: absolute;
+  right: 0;
+  bottom: 112%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spirit:hover::after {
+  opacity: 1;
+}
+
 .slot {
   width: 52px;
   height: 52px;

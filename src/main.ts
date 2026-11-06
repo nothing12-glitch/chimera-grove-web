@@ -18,6 +18,7 @@ import {
   type FX,
 } from "./game/systems";
 import { clearSave, loadGame, newGame, SLOT_COUNT, type Game, type Slot } from "./game/state";
+import { spawnSpirits, stepSpirits, type Spirit } from "./game/spirits";
 
 const canvasEl = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvasEl) throw new Error("#game canvas missing");
@@ -54,6 +55,19 @@ if (!saved) {
   game.py = world.spawn.ty * 16 - 2;
 }
 
+const spirits: Spirit[] = spawnSpirits(world);
+if (saved) {
+  for (const [id, x, y, dir, trust, want] of saved.game.spirits ?? []) {
+    const s = spirits.find((sp) => sp.id === id);
+    if (!s) continue;
+    s.x = x;
+    s.y = y;
+    s.dir = dir;
+    s.trust = trust;
+    s.want = want;
+  }
+}
+
 const renderer = new Renderer(canvas, world);
 const fx: FX[] = [];
 
@@ -68,11 +82,11 @@ const events: Events = {
 const hud = new Hud((slot) => slotIcon(renderer, slot));
 hud.onSlotClick((i) => {
   game.selected = i;
-  commit(game, world);
+  commit(game, world, spirits);
 });
 hud.onShopAction((a: ShopAction) => {
-  if (a.type === "buy") buySeeds(game, world, a.crop, a.qty, events);
-  else sellStock(game, world, a.crop, a.qty, events);
+  if (a.type === "buy") buySeeds(game, world, a.crop, a.qty, events, spirits);
+  else sellStock(game, world, a.crop, a.qty, events, spirits);
   hud.setShop(true, game);
 });
 hud.onShopClose(() => closeShop());
@@ -103,7 +117,7 @@ function handleKeys(): void {
   const wheel = takeWheel();
   if (wheel) game.selected = (game.selected + wheel + SLOT_COUNT) % SLOT_COUNT;
 
-  if (wasPressed("e") || wasPressed("space") || wasPressed("enter")) interact(game, world, events);
+  if (wasPressed("e") || wasPressed("space") || wasPressed("enter")) interact(game, world, events, spirits);
   if (wasPressed("f")) startSkip(game, events);
 }
 
@@ -165,17 +179,18 @@ function frame(now: number): void {
   }
   if (game.skip > 0 && wasPressed("f")) game.skip = 0.02;
 
-  tickTime(game, world, dt, events);
+  tickTime(game, world, dt, events, spirits);
+  if (game.skip <= 0) stepSpirits(spirits, game, world, dt);
   stepFx(fx, dt);
   renderer.shake = Math.max(0, renderer.shake - dt * 1.6);
 
-  renderer.draw(game, fx, now / 1000);
-  hud.refresh(game, currentHint(game, world), countReady(world));
+  renderer.draw(game, fx, now / 1000, spirits);
+  hud.refresh(game, currentHint(game, world, spirits), countReady(world), spirits);
 
   sinceSave += dt;
   if (sinceSave > 12) {
     sinceSave = 0;
-    commit(game, world);
+    commit(game, world, spirits);
   }
   endFrame();
   requestAnimationFrame(frame);
@@ -184,22 +199,33 @@ function frame(now: number): void {
 window.addEventListener("resize", resize);
 window.addEventListener("beforeunload", saveOnUnload);
 function saveOnUnload(): void {
-  commit(game, world);
+  commit(game, world, spirits);
 }
 attachInput(window);
 resize();
-hud.refresh(game, null, 0);
+hud.refresh(game, null, 0, spirits);
 
 if (saved) hud.toast(`Світанок дня ${game.day}. Город чекає на тебе.`, "info");
 else {
   hud.toast("Ти вигнаний алхімік. Почни з Місячної Пелюстки.", "info");
   hud.toast("Мотика — 1, лійка — 2, насіння — 3-7. Дія: E.", "info");
+  hud.toast("У гаю живуть три духи. Пригости їх урожаєм — вони віддячать.", "info");
 }
-commit(game, world);
+commit(game, world, spirits);
 requestAnimationFrame(frame);
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __cg: unknown }).__cg = { game, world, renderer, fx, events, hud, interact, commit };
+  (window as unknown as { __cg: unknown }).__cg = {
+    game,
+    world,
+    renderer,
+    fx,
+    events,
+    hud,
+    spirits,
+    interact,
+    commit,
+  };
 }
 
 function slotIcon(r: Renderer, slot: Slot): HTMLCanvasElement | null {

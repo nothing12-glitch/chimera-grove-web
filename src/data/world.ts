@@ -6,7 +6,7 @@ export const MAP_W = 48;
 export const MAP_H = 32;
 
 export type TileKind = "grass" | "path" | "water" | "soil";
-export type ObjectKind = "pine" | "round_tree" | "bush" | "rock" | "stump" | "stall" | "sign" | "fence";
+export type ObjectKind = "pine" | "round_tree" | "bush" | "rock" | "stump" | "stall" | "sign" | "fence" | "shrine";
 
 export type Plot = {
   moisture: number;
@@ -24,6 +24,8 @@ export type World = {
   plots: Map<number, Plot>;
   stall: { tx: number; ty: number };
   spawn: { tx: number; ty: number };
+  /** where each spirit was born; they wander around these */
+  spiritHomes: { tx: number; ty: number }[];
   waterTiles: number[];
 };
 
@@ -57,6 +59,7 @@ const SOLID: Record<ObjectKind, boolean> = {
   stall: true,
   sign: true,
   fence: true,
+  shrine: true,
 };
 
 export function isSolid(w: World, tx: number, ty: number): boolean {
@@ -146,6 +149,19 @@ export function generateWorld(): World {
     }
   }
 
+  // Spirit dolmen in the north-west glade; the three spirits sleep under its cap.
+  const shrine = { tx: 10, ty: 9 };
+  obj[idx(shrine.tx, shrine.ty)] = "shrine";
+  const spiritHomes = [
+    { tx: 12, ty: 10 },
+    { tx: 8, ty: 12 },
+    { tx: 14, ty: 8 },
+  ];
+  for (const h of spiritHomes) {
+    obj[idx(h.tx, h.ty)] = undefined as unknown as ObjectKind;
+    kind[idx(h.tx, h.ty)] = 0;
+  }
+
   // Scatter decorations that do not block walking.
   for (let ty = 2; ty < MAP_H - 2; ty++) {
     for (let tx = 2; tx < MAP_W - 2; tx++) {
@@ -166,6 +182,7 @@ export function generateWorld(): World {
     plots: new Map(),
     stall,
     spawn,
+    spiritHomes,
     waterTiles,
   };
 }

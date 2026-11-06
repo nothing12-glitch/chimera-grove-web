@@ -11,6 +11,7 @@ import {
   ROCK,
   ROUND_TREE,
   SEED_STALL,
+  SHRINE,
   SIGNPOST,
   STUMP,
   TILLED,
@@ -20,6 +21,7 @@ import {
   WILD_FLOWER,
 } from "../data/art";
 import { CROPS } from "../data/crops";
+import { SPIRITS, type SpiritDef } from "../data/spirits";
 import {
   MAP_H,
   MAP_W,
@@ -30,6 +32,7 @@ import {
   type World,
 } from "../data/world";
 import { DAY_LENGTH, type Game } from "./state";
+import type { Spirit } from "./spirits";
 import { stageOf, type FX } from "./systems";
 
 export const VIEW_W = 320;
@@ -55,6 +58,8 @@ export function spriteFor(kind: string): HTMLCanvasElement {
       return buildSprite("sign", SIGNPOST);
     case "fence":
       return buildSprite("fence", FENCE);
+    case "shrine":
+      return buildSprite("shrine", SHRINE);
     default:
       return buildSprite("tuft", GRASS_TUFT);
   }
@@ -69,6 +74,7 @@ const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
   rock: { oy: 6, base: 16 },
   stump: { oy: 2, base: 16 },
   fence: { oy: 0, base: 16 },
+  shrine: { oy: -8, base: 16 },
 };
 
 export class Renderer {
@@ -163,6 +169,13 @@ export class Renderer {
     return buildTinted(`${cropId}:${stage}`, shape, pal);
   }
 
+  spiritSprite(s: Spirit, def: SpiritDef): HTMLCanvasElement {
+    const step = s.moving && Math.floor(s.anim) % 2 ? 1 : 0;
+    const built = buildSprite(`${s.id}:${step}`, def.frames[step]);
+    const mirrored = def.facesLeft ? s.dir === "right" : s.dir === "left";
+    return mirrored ? flipX(built) : built;
+  }
+
   playerSprite(g: Game): HTMLCanvasElement {
     const step = Math.floor(g.anim) % 2;
     if (g.dir === "up") return buildSprite("p_up", g.moving && step ? PLAYER_DOWN_WALK : PLAYER_UP);
@@ -172,7 +185,7 @@ export class Renderer {
     return side;
   }
 
-  draw(g: Game, fx: FX[], t: number): void {
+  draw(g: Game, fx: FX[], t: number, spirits: Spirit[]): void {
     const c = this.vctx;
     const w = this.world;
     const cam = this.camera(g);
@@ -237,6 +250,21 @@ export class Renderer {
     }
     const px = Math.round(g.px);
     const py = Math.round(g.py);
+    for (const s of spirits) {
+      if (!visible(Math.floor(s.x / TILE), Math.floor(s.y / TILE), cam)) continue;
+      const def = SPIRITS[s.id];
+      const spr = this.spiritSprite(s, def);
+      const sx = Math.round(s.x);
+      const sy = Math.round(s.y) - (def.hover ? 5 + Math.round(Math.sin(t * 2.4 + s.anim) * 2) : 0);
+      items.push({
+        y: sy + 14,
+        draw: () => {
+          shadow(c, sx + 8, sy + 15, 4);
+          c.drawImage(spr, sx, sy);
+          if (!s.fed) this.wantMark(c, s, sx, sy, g.px, g.py);
+        },
+      });
+    }
     const playerSpr = this.playerSprite(g);
     items.push({
       y: py + 20,
@@ -258,6 +286,34 @@ export class Renderer {
     c.restore();
     this.drawLight(g, t);
     this.present();
+  }
+
+  /** Distant hungry spirits get a spark; the full want bubble only shows when you stand next to them. */
+  private wantMark(c: CanvasRenderingContext2D, s: Spirit, x: number, y: number, px: number, py: number): void {
+    if (Math.abs(x - px) <= 3 * TILE && Math.abs(y - py) <= 3 * TILE) {
+      this.wantBubble(c, s, x, y);
+      return;
+    }
+    c.fillStyle = "#2a1f3d";
+    c.fillRect(x + 6, y - 6, 4, 4);
+    c.fillStyle = "#e3d1ff";
+    c.fillRect(x + 7, y - 5, 2, 2);
+  }
+
+  private wantBubble(c: CanvasRenderingContext2D, s: Spirit, x: number, y: number): void {
+    const bx = x;
+    const by = y - 19;
+    c.globalAlpha = 0.78;
+    c.fillStyle = "#0d1519";
+    c.fillRect(bx - 1, by - 1, 18, 19);
+    c.globalAlpha = 1;
+    c.fillStyle = "#5f8496";
+    c.fillRect(bx - 1, by - 1, 18, 1);
+    c.fillRect(bx - 1, by + 17, 18, 1);
+    c.fillRect(bx - 1, by, 1, 17);
+    c.fillRect(bx + 16, by, 1, 17);
+    c.fillRect(bx + 7, by + 18, 2, 1);
+    c.drawImage(this.cropSprite(s.want, 3), bx, by);
   }
 
   private drawLight(g: Game, t: number): void {

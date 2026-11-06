@@ -1,8 +1,11 @@
 import { CROPS, CROP_ORDER, type CropId } from "../data/crops";
+import { SPIRITS, SPIRIT_ORDER, TRUST_MAX } from "../data/spirits";
 import { CAN_CAPACITY, DAY_LENGTH, type Game, type Slot } from "./state";
 import type { Hint } from "./systems";
 
 export type ShopAction = { type: "buy" | "sell"; crop: CropId; qty: number };
+
+export type SpiritView = { id: string; trust: number; want: CropId; fed: boolean };
 
 type IconResolver = (slot: Slot) => HTMLCanvasElement | null;
 
@@ -18,6 +21,8 @@ export class Hud {
   private shop = must<HTMLDivElement>("#shop");
   private shopRows = must<HTMLDivElement>("#shop-rows");
   private help = must<HTMLDivElement>("#help");
+  private spiritBox = must<HTMLDivElement>("#spirits");
+  private spiritRows: { el: HTMLDivElement; dots: HTMLSpanElement; want: HTMLSpanElement }[] = [];
   private slots: { el: HTMLButtonElement; canvas: HTMLCanvasElement; count: HTMLSpanElement; dry: HTMLSpanElement }[] = [];
 
   constructor(private icon: IconResolver) {
@@ -43,6 +48,23 @@ export class Hud {
       el.append(num, canvas, count, dry);
       this.hotbar.append(el);
       this.slots.push({ el, canvas, count, dry });
+    });
+
+    SPIRIT_ORDER.forEach((id) => {
+      const def = SPIRITS[id];
+      const el = document.createElement("div");
+      el.className = "spirit";
+      el.dataset.label = `${def.name} · ${def.latin}`;
+      const name = document.createElement("span");
+      name.className = "sname";
+      name.textContent = def.name;
+      const dots = document.createElement("span");
+      dots.className = "dots";
+      const want = document.createElement("span");
+      want.className = "swant";
+      el.append(name, dots, want);
+      this.spiritBox.append(el);
+      this.spiritRows.push({ el, dots, want });
     });
   }
 
@@ -75,7 +97,7 @@ export class Hud {
     must<HTMLButtonElement>("#btn-reset").addEventListener("click", cb);
   }
 
-  refresh(g: Game, hint: Hint | null, readyCount: number): void {
+  refresh(g: Game, hint: Hint | null, readyCount: number, spirits: SpiritView[] = []): void {
     this.day.textContent = `День ${g.day}`;
     const hours = 8 + (g.dayTime / DAY_LENGTH) * 12;
     const hh = Math.floor(hours);
@@ -115,6 +137,20 @@ export class Hud {
           : slot.kind === "seed"
             ? `${g.harvest[slot.crop]}`
             : "";
+    });
+
+    SPIRIT_ORDER.forEach((id, i) => {
+      const row = this.spiritRows[i];
+      if (!row) return;
+      const s = spirits.find((v) => v.id === id);
+      if (!s) {
+        row.el.classList.add("off");
+        return;
+      }
+      row.el.classList.toggle("fed", s.fed);
+      row.el.classList.toggle("friend", s.trust >= TRUST_MAX);
+      row.dots.textContent = "●".repeat(s.trust) + "○".repeat(TRUST_MAX - s.trust);
+      row.want.textContent = s.fed ? "ситий" : CROPS[s.want].name;
     });
   }
 

@@ -1081,3 +1081,48 @@ export const SINKHOLE: Sprite = rects(16, 16, [
   [13, 11, 2, 1, "#8f6fd6"],
   [7, 14, 3, 1, "#1a1420"],
 ]);
+
+const IRON = "#3b3b4a";
+const IRON_LIT = "#565670";
+const COPPER = "#a86a3c";
+const BREW = "#7bd6c2";
+const GLASSWARE = "#cfe3ef";
+const GLASS_DARK = "#8fa6b8";
+
+/** The alchemist's own bench: cauldron over coals, two flasks cooling on the slab. */
+export const ALCHEMY_TABLE: Sprite = rects(16, 20, [
+  [1, 12, 14, 2, WOOD],
+  [1, 12, 14, 1, "#a5814f"],
+  [2, 14, 3, 5, WOOD_D],
+  [11, 14, 3, 5, WOOD_D],
+  [1, 18, 14, 2, STONE_DARK],
+  [3, 6, 10, 6, IRON],
+  [3, 5, 10, 1, IRON_LIT],
+  [4, 7, 8, 1, BREW],
+  [2, 8, 1, 3, IRON_LIT],
+  [13, 8, 1, 3, IRON_LIT],
+  [5, 8, 2, 1, "#a8f0dd"],
+  [6, 11, 4, 2, EMBER],
+  [7, 12, 2, 1, EMBER_LIT],
+  [0, 8, 2, 4, GLASSWARE],
+  [0, 10, 2, 2, RUNE],
+  [0, 11, 2, 1, GLASS_DARK],
+  [14, 9, 2, 3, GLASSWARE],
+  [14, 10, 2, 2, COPPER],
+  [14, 11, 2, 1, GLASS_DARK],
+]);
+
+/** One flask of brew. Char `l` is the liquid: repaint it per potion with buildTinted. */
+export const FLASK: Sprite = rects(
+  10,
+  14,
+  [
+    [3, 0, 4, 2, WOOD],
+    [4, 2, 2, 4, GLASSWARE],
+    [1, 6, 8, 7, GLASSWARE],
+    [2, 8, 6, 5, "#8fb7ff"],
+    [2, 7, 1, 5, "#f2f7ff"],
+    [1, 12, 8, 1, GLASS_DARK],
+  ],
+  { l: "#8fb7ff" },
+);

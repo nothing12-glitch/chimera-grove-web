@@ -16,7 +16,8 @@ export type ObjectKind =
   | "sign"
   | "fence"
   | "shrine"
-  | "sinkhole";
+  | "sinkhole"
+  | "table";
 
 export type Plot = {
   moisture: number;
@@ -33,6 +34,8 @@ export type World = {
   /** tile index -> plot data (only for soil) */
   plots: Map<number, Plot>;
   stall: { tx: number; ty: number };
+  /** the alchemist's own brewing bench */
+  table: { tx: number; ty: number };
   sinkhole: { tx: number; ty: number };
   spawn: { tx: number; ty: number };
   /** where each spirit was born; they wander around these */
@@ -83,6 +86,7 @@ const SOLID: Record<ObjectKind, boolean> = {
   rock: true,
   stump: true,
   stall: true,
+  table: true,
   sign: true,
   fence: true,
   shrine: true,
@@ -166,6 +170,11 @@ export function generateWorld(): World {
   const sign = { tx: stall.tx + 4, ty: stall.ty + 2 };
   obj[idx(sign.tx, sign.ty)] = "sign";
 
+  // The alchemist's bench stands three steps south of the stall.
+  const table = { tx: stall.tx, ty: stall.ty + 3 };
+  obj[idx(table.tx, table.ty)] = "table";
+  kind[idx(table.tx, table.ty)] = 0;
+
   // Path: spawn -> stall -> south garden, drawn with a slight wiggle.
   const spawn = { tx: cx + 1, ty: cy + 4 };
   carvePath(kind, obj, spawn.tx, spawn.ty, stall.tx + 1, stall.ty);
@@ -207,6 +216,7 @@ export function generateWorld(): World {
         Math.hypot(tx - spawn.tx, ty - spawn.ty) +
         Math.hypot(tx - stall.tx, ty - stall.ty);
       if (near < 3) continue;
+      if (Math.hypot(tx - table.tx, ty - table.ty) < 2) continue;
       if (Math.hypot(tx - sinkhole.tx, ty - sinkhole.ty) < 2) continue;
       const r = rnd();
       if (r < 0.03) obj[i] = "bush";
@@ -220,6 +230,7 @@ export function generateWorld(): World {
     obj,
     plots: new Map(),
     stall,
+    table,
     sinkhole,
     spawn,
     spiritHomes,

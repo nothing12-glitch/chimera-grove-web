@@ -1,4 +1,5 @@
 import { CROPS, NETWORK_ONLY_SEEDS, type CropId } from "../data/crops";
+import { POTIONS, canBrew, recipeText, type PotionId } from "../data/potions";
 import {
   idx,
   isSolid,
@@ -62,6 +63,13 @@ export function nearStall(g: Game, w: World): boolean {
   return Math.hypot(px - (w.stall.tx + 0.5), py - (w.stall.ty + 0.5)) < 2.6;
 }
 
+export function nearTable(g: Game, w: World): boolean {
+  if (g.scene !== "grove") return false;
+  const px = g.px / 16;
+  const py = g.py / 16;
+  return Math.hypot(px - (w.table.tx + 0.5), py - (w.table.ty + 1)) < 2.4;
+}
+
 export function nearSinkhole(g: Game, w: World): boolean {
   if (g.scene !== "grove") return false;
   const px = g.px / 16;
@@ -78,7 +86,7 @@ export function movePlayer(
   dy: number,
   dt: number,
 ): void {
-  const speed = 78;
+  const speed = 78 * (g.effects.speed > 0 ? 1.4 : 1);
   const nx = g.px + dx * speed * dt;
   const ny = g.py + dy * speed * dt;
   if (dx) g.dir = dx > 0 ? "right" : "left";
@@ -107,7 +115,7 @@ function walkable(w: World, x: number, y: number): boolean {
 export type Hint = { label: string; key: string };
 
 export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
-  if (g.shopOpen) return null;
+  if (g.shopOpen || g.brewOpen) return null;
   if (ctx.cave && g.scene === "roots") return caveHint(g, ctx.run, ctx.cave);
   const reach = spiritInReach(g, ctx.spirits);
   if (reach) {
@@ -121,6 +129,7 @@ export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
   }
   if (nearSinkhole(g, w))
     return { key: "E", label: "Спуститися в Мережу Коренів" };
+  if (nearTable(g, w)) return { key: "E", label: "Відкрити алхімічний стіл" };
   if (nearStall(g, w)) return { key: "E", label: "Відкрити прилавок" };
   const { tx, ty } = facingTile(g);
   const plot = w.plots.get(idx(tx, ty));
@@ -168,7 +177,7 @@ export function stageOf(plot: Plot): number {
 
 /** Primary interaction: cave node / climb / descend, or feed a spirit / till / plant / water / refill / harvest / open shop. */
 export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
-  if (g.shopOpen) return;
+  if (g.shopOpen || g.brewOpen) return;
   const spirits = ctx.spirits;
   if (ctx.cave && g.scene === "roots") {
     const outcome = interactCave(g, ctx.run, ctx.cave, ev);
@@ -179,6 +188,11 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
   }
   if (nearSinkhole(g, w)) {
     ev.enterRoots();
+    return;
+  }
+  if (nearTable(g, w)) {
+    g.brewOpen = true;
+    ev.toast("Алхімічний стіл: вкинь урожай у казан", "info");
     return;
   }
   if (nearStall(g, w)) {
@@ -288,12 +302,21 @@ export function advanceDay(g: Game, w: World, ev: Events, ctx: Ctx): void {
     if (!plot.crop) continue;
     const def = CROPS[plot.crop];
     if (plot.moisture > 0 && !isMature(plot)) {
-      plot.points += 1;
+      plot.points += g.growth > 0 ? 2 : 1;
       grew += 1;
     }
     plot.moisture = Math.max(0, plot.moisture - def.thirst);
     if (plot.moisture === 0 && !isMature(plot) && plot.points < def.matureAt)
       dried += 1;
+  }
+  if (g.growth > 0) {
+    g.growth -= 1;
+    ev.toast(
+      g.growth > 0
+        ? `Квінтесенція тримає: ще ${g.growth} світанк${g.growth === 1 ? "" : "и"}`
+        : "Квінтесенція вичерпалася",
+      "info",
+    );
   }
   const ready = countReady(w);
   if (ready > 0) ev.toast(`${ready} грядок дозріло. Час збирати!`, "good");
@@ -317,6 +340,10 @@ export function tickTime(
   ev: Events,
   ctx: Ctx,
 ): void {
+  // Flasks burn on the wall clock, not the crop clock.
+  for (const key of ["speed", "light", "calm"] as const) {
+    if (g.effects[key] > 0) g.effects[key] = Math.max(0, g.effects[key] - dt);
+  }
   if (g.skip > 0) {
     g.skip -= dt;
     g.dayTime += dt * (DAY_LENGTH / 0.5);
@@ -331,7 +358,7 @@ export function tickTime(
 }
 
 export function startSkip(g: Game, ev: Events): void {
-  if (g.shopOpen) return;
+  if (g.shopOpen || g.brewOpen) return;
   g.skip = 0.5;
   ev.toast("Алхімік чекає світанку…", "info");
 }
@@ -406,3 +433,55 @@ export function buySeeds(
   ev.toast(`Куплено ${qty} насіння «${CROPS[crop].name}»`, "good");
   commit(g, w, ctx);
 }
+
+/** The cauldron burns the harvest and leaves exactly one flask behind. */
+export function brew(
+  g: Game,
+  w: World,
+  potion: PotionId,
+  ev: Events,
+  ctx: Ctx,
+): void {
+  const def = POTIONS[potion];
+  if (!canBrew(g.harvest, def)) {
+    ev.toast(`Казан просить: ${recipeText(def)}`, "bad");
+    return;
+  }
+  for (const [crop, qty] of Object.entries(def.needs)) {
+    g.harvest[crop as CropId] -= qty ?? 0;
+  }
+  g.potions[potion] += 1;
+  ev.fx(w.table.tx * 16 + 8, w.table.ty * 16 + 4, def.color, "spark");
+  ev.shake(2);
+  ev.toast(`Зварено «${def.name}»`, "good");
+  commit(g, w, ctx);
+}
+
+/** Drinking starts the effect; a fresh flask simply extends the one already running. */
+export function drink(
+  g: Game,
+  w: World,
+  potion: PotionId,
+  ev: Events,
+  ctx: Ctx,
+): void {
+  if (g.potions[potion] <= 0) return;
+  const def = POTIONS[potion];
+  g.potions[potion] -= 1;
+  if (def.effect === "growth") {
+    g.growth += def.dawns;
+    ev.toast(`Грядки ростуть вдвічі ще ${def.dawns} світанки`, "good");
+  } else {
+    const was = g.effects[def.effect];
+    g.effects[def.effect] = Math.max(was, def.seconds);
+    ev.toast(EFFECT_ANNOUNCE[def.effect], "good");
+  }
+  ev.fx(g.px + 8, g.py + 6, def.color, "spark");
+  commit(g, w, ctx);
+}
+
+const EFFECT_ANNOUNCE: Record<"speed" | "light" | "calm", string> = {
+  speed: "Роса на губах: ноги майже не торкаються землі",
+  light: "Мастило пахне смолою — темрява відступає вдвічі далі",
+  calm: "Вітер у кишені: прилив спор тече вдвічі повільніше",
+};

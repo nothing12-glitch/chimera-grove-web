@@ -78,10 +78,12 @@ export function stepTide(
   run: RootsRun,
   dt: number,
   ev: Events,
+  /** Calm Wind lets the alchemist set the pace of the tide */
+  slow = 1,
 ): "warn" | "eject" | null {
   if (run.tide >= TIDE_SECONDS) return "eject";
   const before = run.tide / TIDE_SECONDS;
-  run.tide += dt;
+  run.tide += dt * slow;
   const after = run.tide / TIDE_SECONDS;
   if (before < TIDE_WARN && after >= TIDE_WARN) {
     ev.toast("Під корінням зашуміло — прилив спор надходить", "bad");
@@ -101,7 +103,7 @@ export function moveInCave(
   dy: number,
   dt: number,
 ): void {
-  const speed = 72;
+  const speed = g.effects.speed > 0 ? 101 : 72;
   g.dir =
     dx > 0
       ? "right"
@@ -247,5 +249,5 @@ export function rootsDawn(run: RootsRun, cave: Cave): void {
 
 /** Light falls off from the alchemist and every glow source; deeper layers see less. */
 export function glowRadius(layer: number): number {
-  return Math.max(46, 74 - layer * 7);
+  return Math.max(46, 76 - layer * 7);
 }

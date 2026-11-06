@@ -206,6 +206,54 @@ canvas#game {
   background: linear-gradient(90deg, #8a3f36, #e0796a);
 }
 
+/* Active brews, stacked under the depth panel. */
+.buffs {
+  position: absolute;
+  top: 88px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.buffs[hidden] {
+  display: none;
+}
+
+.buffs span {
+  background: rgba(18, 12, 30, 0.9);
+  border: 1px solid rgba(178, 148, 232, 0.3);
+  border-left: 3px solid var(--brew, #cbb8ff);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #e6dcfa;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.row .needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.row .needs span {
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+.row .needs .ok {
+  background: rgba(122, 198, 158, 0.12);
+  color: #9fe3c0;
+}
+
+.row .needs .lack {
+  background: rgba(224, 121, 106, 0.12);
+  color: #f0a89c;
+}
+
 .spirit {
   position: relative;
   display: flex;

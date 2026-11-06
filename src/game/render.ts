@@ -1,10 +1,12 @@
 import { buildSprite, buildTinted, flipX } from "../core/sprites";
 import {
+  ALCHEMY_TABLE,
   BUSH,
   CAVE_CAP,
   CAVE_DEBRIS,
   DEEP_WELL,
   FENCE,
+  FLASK,
   GRASS_TUFT,
   MYCEL_NODE,
   MYCEL_SPENT,
@@ -47,7 +49,7 @@ import {
   type World,
 } from "../data/world";
 import { DAY_LENGTH, type Game } from "./state";
-import { tideRatio, type RootsRun } from "./roots";
+import { glowRadius, tideRatio, type RootsRun } from "./roots";
 import type { Spirit } from "./spirits";
 import { stageOf, type FX } from "./systems";
 
@@ -84,9 +86,16 @@ export function spriteFor(kind: string): HTMLCanvasElement {
       return buildSprite("shrine", SHRINE);
     case "sinkhole":
       return buildSprite("sinkhole", SINKHOLE);
+    case "table":
+      return buildSprite("table", ALCHEMY_TABLE);
     default:
       return buildSprite("tuft", GRASS_TUFT);
   }
+}
+
+/** A flask of brew, repainted with the potion's own liquid colour. */
+export function flaskSprite(color: string): HTMLCanvasElement {
+  return buildTinted(`flask_${color}`, FLASK, { ...FLASK.pal, l: color });
 }
 
 const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
@@ -99,6 +108,7 @@ const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
   stump: { oy: 2, base: 16 },
   fence: { oy: 0, base: 16 },
   shrine: { oy: -8, base: 16 },
+  table: { oy: -4, base: 20 },
 };
 
 export class Renderer {
@@ -567,8 +577,9 @@ export class Renderer {
     d.fillStyle = "#06040c";
     d.fillRect(0, 0, VIEW_W, VIEW_H);
     d.globalCompositeOperation = "destination-out";
-    const body =
-      Math.max(46, 76 - cave.layer * 7) * (1 + Math.sin(t * 6.5) * 0.03);
+    // Lamp Oil pushes every darkness edge on this layer outward.
+    const lamp = g.effects.light > 0 ? 1.7 : 1;
+    const body = glowRadius(cave.layer) * lamp * (1 + Math.sin(t * 6.5) * 0.03);
     punch(d, g.px + 8 - cam.x, g.py + 12 - cam.y, body);
     for (const [i, radius] of cave.lights) {
       if (radius <= 0) continue;
@@ -576,7 +587,12 @@ export class Renderer {
       const ly = Math.floor(i / CAVE_W) * TILE + 8 - cam.y;
       if (lx < -80 || ly < -80 || lx > VIEW_W + 80 || ly > VIEW_H + 80)
         continue;
-      punch(d, lx, ly, radius * TILE * (1 + Math.sin(t * 1.8 + i) * 0.06));
+      punch(
+        d,
+        lx,
+        ly,
+        radius * TILE * lamp * (1 + Math.sin(t * 1.8 + i) * 0.06),
+      );
     }
     d.globalCompositeOperation = "source-over";
     const c = this.vctx;

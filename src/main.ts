@@ -9,8 +9,14 @@ import { buildSprite } from "./core/sprites";
 import { HOE, WATERING_CAN } from "./data/art";
 import { caveName, type Cave } from "./data/roots";
 import { generateWorld, type World } from "./data/world";
-import { Hud, type ShopAction } from "./game/hud";
-import { loadWorldFromSave, Renderer, VIEW_H, VIEW_W } from "./game/render";
+import { Hud, type BrewAction, type ShopAction } from "./game/hud";
+import {
+  flaskSprite,
+  loadWorldFromSave,
+  Renderer,
+  VIEW_H,
+  VIEW_W,
+} from "./game/render";
 import {
   enterLayer,
   moveInCave,
@@ -22,10 +28,13 @@ import {
   tideRatio,
 } from "./game/roots";
 import {
+  advanceDay,
+  brew,
   buySeeds,
   commit,
   countReady,
   currentHint,
+  drink,
   interact,
   movePlayer,
   sellStock,
@@ -70,6 +79,13 @@ if (saved) {
     seeds: { ...game.seeds, ...s.seeds },
     harvest: { ...game.harvest, ...s.harvest },
     scene: s.scene ?? "grove",
+    potions: { ...game.potions, ...(s.potions ?? {}) },
+    effects: {
+      speed: s.effects?.[0] ?? 0,
+      light: s.effects?.[1] ?? 0,
+      calm: s.effects?.[2] ?? 0,
+    },
+    growth: s.growth ?? 0,
   };
   world.plots.clear();
   for (const [i, moisture, points, crop, sway] of s.plots) {
@@ -168,7 +184,10 @@ function surfaceTime(): void {
   commit(game, world, ctx);
 }
 
-const hud = new Hud((slot) => slotIcon(renderer, slot));
+const hud = new Hud(
+  (slot) => slotIcon(renderer, slot),
+  (color) => flaskSprite(color),
+);
 hud.onSlotClick((i) => {
   game.selected = i;
   commit(game, world, ctx);
@@ -178,6 +197,12 @@ hud.onShopAction((a: ShopAction) => {
   else sellStock(game, world, a.crop, a.qty, events, ctx);
   hud.setShop(true, game);
 });
+hud.onBrewAction((a: BrewAction) => {
+  if (a.type === "brew") brew(game, world, a.potion, events, ctx);
+  else drink(game, world, a.potion, events, ctx);
+  hud.setBrew(true, game);
+});
+hud.onBrewClose(() => closeBrew());
 hud.onShopClose(() => closeShop());
 hud.onHelpToggle((open) => hud.setHelp(open));
 hud.onReset(() => {
@@ -192,13 +217,19 @@ function closeShop(): void {
   hud.setShop(false, game);
 }
 
+function closeBrew(): void {
+  game.brewOpen = false;
+  hud.setBrew(false, game);
+}
+
 function handleKeys(): void {
   if (wasPressed("h")) hud.setHelp(!hud.helpOpen);
   if (wasPressed("escape")) {
     if (hud.helpOpen) hud.setHelp(false);
     else if (game.shopOpen) closeShop();
+    else if (game.brewOpen) closeBrew();
   }
-  if (game.shopOpen || hud.helpOpen) return;
+  if (game.shopOpen || game.brewOpen || hud.helpOpen) return;
 
   for (let i = 0; i < SLOT_COUNT; i++) {
     if (wasPressed(String(i + 1))) game.selected = i;
@@ -273,11 +304,12 @@ function frame(now: number): void {
 
   handleKeys();
 
-  if (!game.shopOpen && !hud.helpOpen) {
+  if (!game.shopOpen && !game.brewOpen && !hud.helpOpen) {
     const a = axis();
     if (ctx.cave) {
       moveInCave(game, ctx.cave, a.x, a.y, dt);
-      if (stepTide(run, dt, events) === "eject") {
+      const slow = game.effects.calm > 0 ? 0.5 : 1;
+      if (stepTide(run, dt, events, slow) === "eject") {
         const cave = openLayer(0, worldSeed, run);
         ctx.cave = cave;
         tideEjects(game, run, cave, events);
@@ -337,6 +369,10 @@ else {
     "Провал біля озера веде в Мережу Коренів — там дозріває Порожній Капелюх.",
     "info",
   );
+  hud.toast(
+    "Казан просто на південь від прилавку: вари зілля з урожаю й пий перед стрибком.",
+    "info",
+  );
 }
 commit(game, world, ctx);
 requestAnimationFrame(frame);
@@ -359,6 +395,11 @@ if (import.meta.env.DEV) {
     tideEjects,
     openLayer,
     interact,
+    brew,
+    drink,
+    movePlayer,
+    advanceDay,
+    tickTime,
     commit,
   };
 }

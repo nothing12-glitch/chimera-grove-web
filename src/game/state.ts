@@ -1,4 +1,5 @@
 import type { CropId } from "../data/crops";
+import type { PotionId } from "../data/potions";
 import type { SpiritId } from "../data/spirits";
 
 export type ToolKind = "hoe" | "can";
@@ -31,9 +32,19 @@ export type Save = {
   /** absent in saves written before the Root Network existed */
   roots?: RootsSave;
   scene?: Scene;
+  /** absent in saves written before the alchemical table existed */
+  potions?: Record<PotionId, number>;
+  /** [speed, light, calm] seconds left */
+  effects?: [number, number, number];
+  growth?: number;
 };
 
 export type Scene = "grove" | "roots";
+
+/** Seconds of real time left on each brewed flask. */
+export type Effects = { speed: number; light: number; calm: number };
+
+export const NO_EFFECTS: Effects = { speed: 0, light: 0, calm: 0 };
 
 export type RootsSave = {
   layer: number;
@@ -63,10 +74,19 @@ export type Game = {
   /** seconds of fast-forward fade left, or 0 */
   skip: number;
   shopOpen: boolean;
+  brewOpen: boolean;
   scene: Scene;
+  potions: Record<PotionId, number>;
+  effects: Effects;
+  /** dawns of doubled growth still owed by the Quintessence */
+  growth: number;
 };
 
 const KEY = "chimeragrove.save.v1";
+
+export function newPotions(): Record<PotionId, number> {
+  return { dew: 0, quintessence: 0, lamp_oil: 0, calm_wind: 0 };
+}
 
 export function newGame(): Game {
   const seeds: Record<CropId, number> = {
@@ -108,7 +128,11 @@ export function newGame(): Game {
     harvest,
     skip: 0,
     shopOpen: false,
+    brewOpen: false,
     scene: "grove",
+    potions: newPotions(),
+    effects: { ...NO_EFFECTS },
+    growth: 0,
   };
 }
 
@@ -136,6 +160,9 @@ export function saveGame(
     spirits,
     roots,
     scene: g.scene,
+    potions: g.potions,
+    effects: [g.effects.speed, g.effects.light, g.effects.calm],
+    growth: g.growth,
   };
   try {
     localStorage.setItem(

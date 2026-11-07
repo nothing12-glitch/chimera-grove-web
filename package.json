@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:art": "node scripts/check-art.ts",
+    "check:pack": "node --import ./scripts/ts-run.mjs scripts/check-art-pack.ts",
     "check:world": "node --import ./scripts/ts-run.mjs scripts/check-world.ts",
     "check:combat": "node --import ./scripts/ts-run.mjs scripts/check-combat.ts"
   },

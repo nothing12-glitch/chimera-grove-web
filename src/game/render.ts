@@ -63,6 +63,8 @@ import {
   type EnemyId,
 } from "../data/enemies";
 import { SPIRITS, type SpiritDef } from "../data/spirits";
+import { MAT, surfaceFor } from "../data/tiles";
+import { tileSome } from "../core/sheets";
 import {
   CAVE_H,
   CAVE_W,
@@ -302,6 +304,9 @@ export class Renderer {
     cvs.height = MAP_H * TILE;
     const c = cvs.getContext("2d")!;
     const w = this.world;
+    // The pack sheets only answer once they have loaded; until then every
+    // branch below falls back to the procedural grove.
+    const pack = tileSome("floors", MAT.meadow.refs, 0) !== null;
     // Tone field first: smooth noise picks the shade, so patches have curvy edges.
     const tone = new Array<string | undefined>(MAP_W * MAP_H).fill(undefined);
     for (let ty = 0; ty < MAP_H; ty++) {
@@ -320,8 +325,21 @@ export class Renderer {
         const x = tx * TILE;
         const y = ty * TILE;
         if (kind === "water") {
-          c.fillStyle = "#123a4e";
-          c.fillRect(x, y, TILE, TILE);
+          const cut = pack ? tileSome("water", MAT.water.refs, pick(tx, ty)) : null;
+          if (cut) c.drawImage(cut, x, y);
+          else {
+            c.fillStyle = "#123a4e";
+            c.fillRect(x, y, TILE, TILE);
+          }
+          continue;
+        }
+        const material =
+          kind === "path"
+            ? MAT.cobble
+            : surfaceFor(biomeAt(w, tx, ty), valueNoise(tx, ty, 9));
+        const cut = pack ? tileSome(material.sheet, material.refs, pick(tx, ty)) : null;
+        if (cut) {
+          c.drawImage(cut, x, y);
           continue;
         }
         if (kind === "path") {
@@ -338,7 +356,8 @@ export class Renderer {
       }
     }
     // Dither a two-pixel fringe wherever two shades meet, so borders never draw a line.
-    for (let ty = 0; ty < MAP_H; ty++) {
+    if (!pack)
+      for (let ty = 0; ty < MAP_H; ty++) {
       for (let tx = 0; tx < MAP_W; tx++) {
         const i = ty * MAP_W + tx;
         const here = tone[i];
@@ -382,6 +401,8 @@ export class Renderer {
     // Decoration pass: what the biome can actually grow, and only where nothing stands.
     const tuft = spriteFor("tuft");
     const flower = buildSprite("flower", WILD_FLOWER);
+    const packTuft = tileSome("vegetation", MAT.sprout.refs, 1);
+    const packFlower = tileSome("vegetation", MAT.flower.refs, 1);
     for (let ty = 1; ty < MAP_H - 1; ty++) {
       for (let tx = 1; tx < MAP_W - 1; tx++) {
         if (tileAt(w, tx, ty) !== "grass" || objectAt(w, tx, ty)) continue;
@@ -390,8 +411,9 @@ export class Renderer {
         const x = tx * TILE;
         const y = ty * TILE;
         if (pal.scatter === "green") {
-          if (r < 0.06) c.drawImage(tuft, x, y - 2);
-          else if (r > 0.94) c.drawImage(flower, x, y - 2);
+          if (r < 0.06) c.drawImage(packTuft ?? tuft, x, packTuft ? y : y - 2);
+          else if (r > 0.94)
+            c.drawImage(packFlower ?? flower, x, packFlower ? y : y - 2);
         } else if (pal.scatter === "grey") {
           if (r < 0.09) {
             c.fillStyle = "#6d7480";
@@ -408,6 +430,16 @@ export class Renderer {
       }
     }
     return cvs;
+  }
+
+  /**
+   * The tile sheets arrive after the first frame; once they do, the baked
+   * ground is thrown away and drawn again out of them.
+   */
+  rebuildGround(): void {
+    this.ground = this.buildGround();
+    this.caveGround = null;
+    this.caveKey = "";
   }
 
   cropSprite(cropId: string, stage: number): HTMLCanvasElement {
@@ -593,7 +625,10 @@ export class Renderer {
       const x = tx * TILE;
       const y = ty * TILE;
       const h = hash(tx, ty);
-      c.drawImage(this.water[(base + (h > 0.5 ? 1 : 0)) % 2], x, y);
+      const frameIdx = (base + (h > 0.5 ? 1 : 0)) % 2;
+      const refs = frameIdx ? MAT.waterRipple.refs : MAT.water.refs;
+      const cut = tileSome("water", refs, pick(tx, ty));
+      c.drawImage(cut ?? this.water[frameIdx], x, y);
       const glint = Math.sin(t * 1.9 + h * 12.6);
       if (glint > 0.25) {
         c.globalAlpha = 0.35 + 0.45 * glint;
@@ -796,6 +831,7 @@ export class Renderer {
     cvs.width = CAVE_W * TILE;
     cvs.height = CAVE_H * TILE;
     const c = cvs.getContext("2d")!;
+    const pack = tileSome("dungeon", MAT.caveFloor.refs, 0) !== null;
     for (let ty = 0; ty < CAVE_H; ty++) {
       for (let tx = 0; tx < CAVE_W; tx++) {
         const i = caveIdx(tx, ty);
@@ -806,6 +842,13 @@ export class Renderer {
           inCave(tx + dx, ty + dy) &&
           cave.tiles[caveIdx(tx + dx, ty + dy)] !== 0;
         if (tile === 0) {
+          const cut = pack
+            ? tileSome("dungeon", MAT.caveWall.refs, pick(tx, ty))
+            : null;
+          if (cut) {
+            c.drawImage(cut, x, y);
+            continue;
+          }
           // Stone near an open face catches the tunnels' light, so the walls have mass.
           const face = EDGE.some(([dx, dy]) => open(dx, dy));
           const halo = !face && NEIGH8.some(([dx, dy]) => open(dx, dy));
@@ -822,6 +865,17 @@ export class Renderer {
               2,
             );
           }
+          continue;
+        }
+        const cut = pack
+          ? tileSome(
+              "dungeon",
+              tile === 2 ? MAT.caveMoss.refs : MAT.caveFloor.refs,
+              pick(tx, ty),
+            )
+          : null;
+        if (cut) {
+          c.drawImage(cut, x, y);
           continue;
         }
         c.fillStyle = tile === 2 ? "#2f2843" : "#292239";
@@ -1155,6 +1209,11 @@ function valueNoise(tx: number, ty: number, cell: number): number {
   const top = n00 + (n10 - n00) * sx;
   const bot = n01 + (n11 - n01) * sx;
   return top + (bot - top) * sy;
+}
+
+/** A stable index into a material's variants, so a tile never changes identity. */
+function pick(tx: number, ty: number): number {
+  return Math.floor(hash(tx * 7, ty * 11) * 997);
 }
 
 function hash(x: number, y: number): number {

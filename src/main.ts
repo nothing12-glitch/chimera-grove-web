@@ -7,6 +7,7 @@ import {
 } from "./core/input";
 import { buildSprite } from "./core/sprites";
 import { initSplash } from "./core/splash";
+import { artSettled, loadArt } from "./core/sheets";
 import { HOE, SICKLE, WATERING_CAN } from "./data/art";
 import { BOSS, HP_MAX } from "./data/enemies";
 import { caveName, type Cave } from "./data/roots";
@@ -62,6 +63,7 @@ const canvasEl = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvasEl) throw new Error("#game canvas missing");
 const canvas: HTMLCanvasElement = canvasEl;
 const splash = initSplash();
+loadArt();
 
 splash?.stage("Проростає гай…");
 const world: World = generateWorld();
@@ -326,10 +328,18 @@ function resize(): void {
 let last = performance.now();
 let sinceSave = 0;
 let booted = false;
+let artOn = false;
 
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+
+  // The tile sheets are still loading while the first frames run; the moment
+  // they settle, the baked ground is redrawn out of them.
+  if (!artOn && artSettled()) {
+    artOn = true;
+    renderer.rebuildGround();
+  }
 
   handleKeys();
 

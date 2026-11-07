@@ -11,6 +11,7 @@ import { HOE, WATERING_CAN } from "./data/art";
 import { caveName, type Cave } from "./data/roots";
 import { generateWorld, type World } from "./data/world";
 import { Hud, type BrewAction, type ShopAction } from "./game/hud";
+import { Minimap } from "./game/minimap";
 import {
   flaskSprite,
   loadWorldFromSave,
@@ -66,7 +67,7 @@ let game: Game = newGame();
 const saved = loadGame();
 
 if (saved) {
-  loadWorldFromSave(world, saved.kind);
+  loadWorldFromSave(world, saved.kind, saved.game.opened, saved.game.looted);
   const s = saved.game;
   game = {
     ...game,
@@ -115,6 +116,8 @@ if (saved) {
 
 splash?.stage("Крою пікселі…");
 const renderer = new Renderer(canvas, world);
+const minimap = new Minimap(world);
+let openedSeen = world.opened.size;
 const fx: FX[] = [];
 
 const run = newRun(game.px, game.py, game.dir);
@@ -126,17 +129,17 @@ if (saved?.game.roots) {
   run.surface = { px: r.surface[0], py: r.surface[1], dir: r.surface[2] };
 }
 // A dive cut short by closing the tab resumes at the rim, never stranded inside a cave.
+const homeMouth = world.sinkholes[0];
 if (game.scene === "roots") {
   run.surface = {
-    px: world.sinkhole.tx * 16,
-    py: world.sinkhole.ty * 16 - 2,
+    px: homeMouth.tx * 16,
+    py: homeMouth.ty * 16 - 2,
     dir: "down",
   };
 }
 
 /** The same grove always hides the same tunnels: the sinkhole seeds every layer. */
-const worldSeed =
-  (0x5eed + world.sinkhole.tx * 7919 + world.sinkhole.ty * 104729) >>> 0;
+const worldSeed = (0x5eed + homeMouth.tx * 7919 + homeMouth.ty * 104729) >>> 0;
 const ctx: Ctx = {
   spirits,
   run,
@@ -149,11 +152,16 @@ const events: Events = {
   shake: (power) => {
     renderer.shake = Math.max(renderer.shake, power / 16);
   },
-  enterRoots() {
+  enterRoots(layer) {
     run.surface = { px: game.px, py: game.py, dir: game.dir };
-    const cave = descendTo(0);
+    const cave = descendTo(layer);
     enterLayer(game, run, cave);
-    hud.toast("Коріння йде під ноги. Шукай вузли міцелію.", "info");
+    hud.toast(
+      layer === 0
+        ? "Коріння йде під ноги. Шукай вузли міцелію."
+        : "Шахта веде геть униз, до серця Мережі.",
+      "info",
+    );
     commit(game, world, ctx);
   },
   descend() {
@@ -208,6 +216,8 @@ hud.onBrewAction((a: BrewAction) => {
 });
 hud.onBrewClose(() => closeBrew());
 hud.onShopClose(() => closeShop());
+hud.onMapClose(() => closeMap());
+hud.onMapToggle(() => hud.setMap(!hud.mapOpen, minimap, game, spirits));
 hud.onHelpToggle((open) => hud.setHelp(open));
 hud.onReset(() => {
   // The unload save must not resurrect the run we are about to erase.
@@ -226,14 +236,20 @@ function closeBrew(): void {
   hud.setBrew(false, game);
 }
 
+function closeMap(): void {
+  hud.setMap(false, minimap, game, spirits);
+}
+
 function handleKeys(): void {
   if (wasPressed("h")) hud.setHelp(!hud.helpOpen);
+  if (wasPressed("m")) hud.setMap(!hud.mapOpen, minimap, game, spirits);
   if (wasPressed("escape")) {
     if (hud.helpOpen) hud.setHelp(false);
+    else if (hud.mapOpen) closeMap();
     else if (game.shopOpen) closeShop();
     else if (game.brewOpen) closeBrew();
   }
-  if (game.shopOpen || game.brewOpen || hud.helpOpen) return;
+  if (game.shopOpen || game.brewOpen || hud.helpOpen || hud.mapOpen) return;
 
   for (let i = 0; i < SLOT_COUNT; i++) {
     if (wasPressed(String(i + 1))) game.selected = i;
@@ -309,7 +325,8 @@ function frame(now: number): void {
 
   handleKeys();
 
-  if (!game.shopOpen && !game.brewOpen && !hud.helpOpen) {
+  const blocked = game.shopOpen || game.brewOpen || hud.helpOpen || hud.mapOpen;
+  if (!blocked) {
     const a = axis();
     if (ctx.cave) {
       moveInCave(game, ctx.cave, a.x, a.y, dt);
@@ -334,6 +351,13 @@ function frame(now: number): void {
 
   if (ctx.cave) renderer.drawCave(game, ctx.cave, run, fx, now / 1000);
   else renderer.draw(game, fx, now / 1000, spirits);
+  if (world.opened.size !== openedSeen) {
+    openedSeen = world.opened.size;
+    minimap.invalidate();
+  }
+  if (hud.mapOpen) hud.setMap(true, minimap, game, spirits);
+  hud.setPlace(minimap.name(game));
+  hud.setRadar(minimap, game, spirits, game.scene === "grove" && !ctx.cave);
   if (!booted) {
     booted = true;
     splash?.stage(`День ${game.day} · гай прокинувся`);
@@ -386,6 +410,14 @@ function showIntro(): void {
       "Казан просто на південь від прилавку: вари зілля з урожаю й пий перед стрибком.",
       "info",
     );
+    hud.toast(
+      "Гай великий: п'ять біомів, дороги до трьох завалених ходів. Порожній Капелюх ламає камінь.",
+      "info",
+    );
+    hud.toast(
+      "M — мапа: червоні крапки ще не відкриті, блакитні вже прохідні.",
+      "info",
+    );
   }
 }
 if (!splash) showIntro();
@@ -404,6 +436,7 @@ if (import.meta.env.DEV) {
     spirits,
     run,
     ctx,
+    minimap,
     worldSeed,
     descendTo,
     surfaceTime,

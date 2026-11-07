@@ -34,6 +34,7 @@
           <div class="stat" id="stat-clock">08:00</div>
           <div class="stat coins" id="stat-coins">60</div>
           <div class="stat water" id="stat-water">4/4</div>
+          <div class="stat place" id="stat-place">Рідний Гай</div>
         </div>
 
         <div class="cave" id="cave-view" hidden>
@@ -55,7 +56,10 @@
 
         <div class="toasts" id="toasts"></div>
 
+        <canvas class="radar" id="radar" width="69" height="69"></canvas>
+
         <button class="ghost help-btn" id="btn-help">Довідка · H</button>
+        <button class="ghost map-btn" id="btn-map">Мапа · M</button>
       </div>
 
       <div class="modal" id="shop" hidden>
@@ -85,6 +89,18 @@
         </div>
       </div>
 
+      <div class="modal" id="map" hidden>
+        <div class="modal-card map-card">
+          <header>
+            <h2>Мапа гаю</h2>
+            <button class="ghost" id="map-close">Закрити · M</button>
+          </header>
+          <canvas id="map-canvas" width="200" height="120"></canvas>
+          <div class="map-legend" id="map-legend"></div>
+          <p class="lede" id="map-note"></p>
+        </div>
+      </div>
+
       <div class="modal" id="help" hidden>
         <div class="modal-card">
           <header>
@@ -105,8 +121,37 @@
               <b>F</b> — чекати до світанку (рослини ростуть на світанку, якщо в
               землі є волога; у печері не діє)
             </li>
+            <li>
+              <b>M</b> — мапа всього світу: рамка посередині показує, який
+              шматок карти зараз перед вами
+            </li>
             <li><b>H</b> — ця довідка, <b>Esc</b> — закрити вікно</li>
           </ul>
+          <div class="loop">
+            <h3>П'ять біомів</h3>
+            <p>
+              Світ у десять екранів завширшки й десять у висоту:
+              <b>Рідний Гай</b>, де ви почали, <b>Темна Чаща</b>,
+              <b>Сиве Болото</b>, <b>Кам'яні Гребені</b> і <b>Забуті Руїни</b>.
+              Назву біома під вікном видно завжди, а в гребенях і руїнах ґрунт
+              кам'яний — мотика там не візьме. У болоті та частині чащі ростуть
+              очерет, болотні дерева й грибниці, у руїнах — колони й мертві
+              дерева, у гребенях — осип і кришталі.
+            </p>
+          </div>
+          <div class="loop">
+            <h3>Завали й кореневі вузлики</h3>
+            <p>
+              Три склепіння обведені стіною й зачинені кам'яним завалом.
+              Підійдіть і натисніть <b>E</b> з
+              <b>одним зібраним Порожнім Капелюхом</b> у мішку: пліснява з'їдає
+              камінь, і весь прохід розпадається дощенту, а не одна клітинка.
+              Усередині кожного склепіння чекає шахта просто в печеру — до
+              Чорних Жил, Тихої Гнилиці чи Серця Мережі. По всьому світу
+              розкидані й <b>кореневі вузлики</b>: <b>E</b> розв'язує їх і лишає
+              спорки, насіння чи сонцязь — але лише один раз на вузлик.
+            </p>
+          </div>
           <div class="loop">
             <h3>Мережа Коренів</h3>
             <p>

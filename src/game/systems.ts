@@ -1,9 +1,16 @@
 import { CROPS, NETWORK_ONLY_SEEDS, type CropId } from "../data/crops";
 import { POTIONS, canBrew, recipeText, type PotionId } from "../data/potions";
+import { rand01 } from "../core/rng";
 import {
+  MAP_W,
+  type BiomeId,
+  type ObjectKind,
+  biomeAt,
   idx,
+  inBounds,
   isSolid,
   isTillable,
+  objectAt,
   setTile,
   tileAt,
   type Plot,
@@ -18,7 +25,7 @@ import {
   type Game,
 } from "./state";
 import { SPIRITS, TRUST_MAX, type SpiritId } from "../data/spirits";
-import type { Cave } from "../data/roots";
+import { caveName, type Cave } from "../data/roots";
 import { caveHint, interactCave, rootsDawn, type RootsRun } from "./roots";
 import { feedSpirit, spiritDawn, spiritInReach, type Spirit } from "./spirits";
 
@@ -36,7 +43,7 @@ export type Events = {
   toast(text: string, tone?: "good" | "bad" | "info"): void;
   fx(x: number, y: number, color: string, kind?: FX["kind"]): void;
   shake(power: number): void;
-  enterRoots(): void;
+  enterRoots(layer: number): void;
   descend(): void;
   ascend(): void;
 };
@@ -70,13 +77,95 @@ export function nearTable(g: Game, w: World): boolean {
   return Math.hypot(px - (w.table.tx + 0.5), py - (w.table.ty + 1)) < 2.4;
 }
 
-export function nearSinkhole(g: Game, w: World): boolean {
-  if (g.scene !== "grove") return false;
+/** The mouth of the Root Network you are standing at — and the depth it delivers you to. */
+export function sinkholeNear(
+  g: Game,
+  w: World,
+): { tx: number; ty: number; layer: number } | null {
+  if (g.scene !== "grove") return null;
   const px = g.px / 16;
   const py = g.py / 16;
-  return (
-    Math.hypot(px - (w.sinkhole.tx + 0.5), py - (w.sinkhole.ty + 0.5)) < 1.7
-  );
+  for (const s of w.sinkholes) {
+    if (Math.hypot(px - (s.tx + 0.5), py - (s.ty + 0.5)) < 1.7) return s;
+  }
+  return null;
+}
+
+/** Rockfall keeps everything out until the Root Network eats its own fruit. */
+const PASS_FRUIT: CropId = "voidcap";
+
+/** Stone and old mortar: the hoe finds nothing to turn over here. */
+const BARREN: Set<BiomeId> = new Set(["ridge", "ruins"]);
+
+/** A sealed pass or an unopened hoard, straight ahead of the alchemist. */
+function facingFeature(
+  g: Game,
+  w: World,
+): { kind: ObjectKind; i: number; tx: number; ty: number } | null {
+  const { tx, ty } = facingTile(g);
+  const o = objectAt(w, tx, ty);
+  if (o === "rockfall" || o === "cache")
+    return { kind: o, i: idx(tx, ty), tx, ty };
+  return null;
+}
+
+/** Dissolve one sealed mouth: the whole connected pile gives way at once. */
+const AROUND = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+function openPass(w: World, start: number): number[] {
+  const queue = [start];
+  const seen = new Set<number>([start]);
+  while (queue.length) {
+    const i = queue.shift()!;
+    const tx = i % MAP_W;
+    const ty = Math.floor(i / MAP_W);
+    for (const [dx, dy] of AROUND) {
+      const nx = tx + dx;
+      const ny = ty + dy;
+      if (!inBounds(nx, ny)) continue;
+      const n = idx(nx, ny);
+      if (seen.has(n) || w.obj[n] !== "rockfall") continue;
+      seen.add(n);
+      queue.push(n);
+    }
+  }
+  const cells = [...seen];
+  for (const i of cells) {
+    w.obj[i] = "rubble";
+    w.opened.add(i);
+  }
+  return cells;
+}
+
+const CACHE_TIERS = [0.34, 0.58, 0.78] as const;
+
+function lootCache(g: Game, w: World, i: number, ev: Events): void {
+  w.looted.add(i);
+  w.obj[i] = "cache_open";
+  const roll = rand01(i, 3, 911);
+  const cx = (i % MAP_W) * 16 + 8;
+  const cy = Math.floor(i / MAP_W) * 16 + 6;
+  ev.fx(cx, cy, "#ffd98a", "leaf");
+  if (roll < CACHE_TIERS[0]) {
+    const n = 20 + Math.floor(roll * 90);
+    g.coins += n;
+    ev.toast(`У кореневому вузлику ${n} сонцязь`, "good");
+  } else if (roll < CACHE_TIERS[1]) {
+    g.seeds.voidcap += 2;
+    ev.toast("Два згортки спор Порожнього Капелюха", "good");
+  } else if (roll < CACHE_TIERS[2]) {
+    g.seeds.glass_fern += 1;
+    g.seeds.ember_root += 1;
+    ev.toast("Насінина Скляної Папороті і Палаючого Кореня", "good");
+  } else {
+    g.seeds.whisper_vine += 1;
+    ev.toast("Насінина Шепотної Лози — духи це запам'ятають", "good");
+  }
 }
 
 export function movePlayer(
@@ -117,6 +206,27 @@ export type Hint = { label: string; key: string };
 export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
   if (g.shopOpen || g.brewOpen) return null;
   if (ctx.cave && g.scene === "roots") return caveHint(g, ctx.run, ctx.cave);
+  const mouth = sinkholeNear(g, w);
+  if (mouth)
+    return {
+      key: "E",
+      label:
+        mouth.layer === 0
+          ? "Спуститися в Мережу Коренів"
+          : `Ковзнути в шахту «${caveName(mouth.layer)}»`,
+    };
+  if (nearTable(g, w)) return { key: "E", label: "Відкрити алхімічний стіл" };
+  if (nearStall(g, w)) return { key: "E", label: "Відкрити прилавок" };
+  const feature = facingFeature(g, w);
+  if (feature?.kind === "rockfall")
+    return {
+      key: "E",
+      label:
+        g.harvest[PASS_FRUIT] > 0
+          ? "Згодувати завалові Порожній Капелюх"
+          : "Завал не пустить: потрібен Порожній Капелюх",
+    };
+  if (feature) return { key: "E", label: "Розв'язати кореневий вузлик" };
   const reach = spiritInReach(g, ctx.spirits);
   if (reach) {
     const def = SPIRITS[reach.id];
@@ -127,10 +237,6 @@ export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
         : `Пригостити: ${def.name} хоче «${CROPS[reach.want].name}»`,
     };
   }
-  if (nearSinkhole(g, w))
-    return { key: "E", label: "Спуститися в Мережу Коренів" };
-  if (nearTable(g, w)) return { key: "E", label: "Відкрити алхімічний стіл" };
-  if (nearStall(g, w)) return { key: "E", label: "Відкрити прилавок" };
   const { tx, ty } = facingTile(g);
   const plot = w.plots.get(idx(tx, ty));
   if (plot?.crop && isMature(plot))
@@ -186,8 +292,9 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
     else commit(g, w, ctx);
     return;
   }
-  if (nearSinkhole(g, w)) {
-    ev.enterRoots();
+  const mouth = sinkholeNear(g, w);
+  if (mouth) {
+    ev.enterRoots(mouth.layer);
     return;
   }
   if (nearTable(g, w)) {
@@ -198,6 +305,34 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
   if (nearStall(g, w)) {
     g.shopOpen = true;
     ev.toast("Прилавок стародавньої торгівлі", "info");
+    return;
+  }
+  const feature = facingFeature(g, w);
+  if (feature?.kind === "rockfall") {
+    if (g.harvest[PASS_FRUIT] < 1) {
+      ev.toast(
+        "Завал тримає. Лише плід Порожнього Капелюха роз'їдає камінь",
+        "bad",
+      );
+      return;
+    }
+    g.harvest[PASS_FRUIT] -= 1;
+    const cells = openPass(w, feature.i);
+    for (const n of cells)
+      ev.fx(
+        (n % MAP_W) * 16 + 8,
+        Math.floor(n / MAP_W) * 16 + 10,
+        "#b6bcc2",
+        "spark",
+      );
+    ev.shake(5);
+    ev.toast("Каміння шипить і осідає порохом. Хід у долі відкрито", "good");
+    commit(g, w, ctx);
+    return;
+  }
+  if (feature) {
+    lootCache(g, w, feature.i, ev);
+    commit(g, w, ctx);
     return;
   }
   const reach = spiritInReach(g, spirits);
@@ -249,6 +384,8 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
       setTile(w, tx, ty, "grass");
       ev.fx(cx, cy, "#8a6038", "spark");
       ev.toast("Рослину викорчовано", "bad");
+    } else if (BARREN.has(biomeAt(w, tx, ty))) {
+      ev.toast("Камінь і давня кладка: тут не розорати грядки", "bad");
     }
     return;
   }
@@ -386,7 +523,7 @@ export function commit(g: Game, w: World, ctx: Ctx): void {
       ],
   );
   const run = ctx.run;
-  saveGame(g, w.kind, plots, sp, {
+  saveGame(g, w, plots, sp, {
     layer: run.layer,
     tide: run.tide,
     picked: run.picked,

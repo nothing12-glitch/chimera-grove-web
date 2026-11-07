@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "check:art": "node scripts/check-art.ts"
+    "check:art": "node scripts/check-art.ts",
+    "check:world": "node --import ./scripts/ts-run.mjs scripts/check-world.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

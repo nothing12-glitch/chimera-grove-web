@@ -794,3 +794,72 @@ button {
     transition: none;
   }
 }
+
+/* ---------- Great grove: place label, radar, full map ---------- */
+
+.stat.place {
+  border-color: #3d5a46;
+  color: var(--moss);
+}
+
+.map-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 46px;
+  pointer-events: auto;
+}
+
+.radar {
+  position: absolute;
+  right: 12px;
+  top: 46px;
+  width: 138px;
+  height: 138px;
+  image-rendering: pixelated;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #08100f;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.radar[hidden] {
+  display: none;
+}
+
+.map-card {
+  width: min(700px, 94vw);
+}
+
+#map-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 3;
+  image-rendering: pixelated;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #08100f;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 10px 0 4px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.map-legend .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.map-legend .chip i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}

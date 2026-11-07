@@ -12,7 +12,9 @@ import {
   type PotionId,
 } from "../data/potions";
 import { SPIRITS, SPIRIT_ORDER, TRUST_MAX } from "../data/spirits";
+import { BIOME_LEGEND, MARK_LEGEND, type Minimap } from "./minimap";
 import { CAN_CAPACITY, DAY_LENGTH, type Game, type Slot } from "./state";
+import type { Spirit } from "./spirits";
 import type { Hint } from "./systems";
 
 export type ShopAction = { type: "buy" | "sell"; crop: CropId; qty: number };
@@ -49,6 +51,15 @@ export class Hud {
   private brew = must<HTMLDivElement>("#brew");
   private brewRows = must<HTMLDivElement>("#brew-rows");
   private buffs = must<HTMLDivElement>("#buffs");
+  private place = must<HTMLDivElement>("#stat-place");
+  private placeText = "";
+  private radar = must<HTMLCanvasElement>("#radar");
+  private map = must<HTMLDivElement>("#map");
+  private mapCanvas = must<HTMLCanvasElement>("#map-canvas");
+  private mapNote = must<HTMLElement>("#map-note");
+  private mapLegend = must<HTMLDivElement>("#map-legend");
+  private mapLegendFilled = false;
+  private mapShown = false;
   private caveDepth = must<HTMLSpanElement>("#cave-depth");
   private caveNameEl = must<HTMLSpanElement>("#cave-name");
   private tideFill = must<HTMLElement>("#cave-tide");
@@ -354,6 +365,47 @@ export class Hud {
     this.help.hidden = !open;
   }
 
+  get mapOpen(): boolean {
+    return this.mapShown;
+  }
+
+  onMapClose(cb: () => void): void {
+    must<HTMLButtonElement>("#map-close").addEventListener("click", cb);
+  }
+
+  /** The whole map is drawn every frame the panel is open — it is only 200x120 pixels. */
+  setMap(open: boolean, m: Minimap, g: Game, spirits: Spirit[]): void {
+    this.mapShown = open;
+    this.map.hidden = !open;
+    if (!open) return;
+    m.paint(this.mapCanvas, g, spirits);
+    if (!this.mapLegendFilled) {
+      this.mapLegendFilled = true;
+      this.mapLegend.replaceChildren(
+        ...BIOME_LEGEND.map((e) => chip(e.color, e.label)),
+        ...MARK_LEGEND.map((e) => chip(e.color, e.label)),
+      );
+    }
+    const here = m.tileOf(g);
+    this.mapNote.textContent = `${m.name(g)} · ${here.tx}:${here.ty}`;
+  }
+
+  setPlace(name: string): void {
+    if (this.placeText === name) return;
+    this.placeText = name;
+    this.place.textContent = name;
+  }
+
+  /** The corner radar mirrors the big map, so you always know where home is. */
+  setRadar(m: Minimap, g: Game, spirits: Spirit[], shown: boolean): void {
+    this.radar.hidden = !shown;
+    if (shown) m.paintWindow(this.radar, g, spirits);
+  }
+
+  onMapToggle(cb: () => void): void {
+    must<HTMLButtonElement>("#btn-map").addEventListener("click", cb);
+  }
+
   setBrew(open: boolean, g: Game): void {
     this.brewShown = open;
     this.brew.hidden = !open;
@@ -422,6 +474,15 @@ export class Hud {
       setTimeout(() => el.remove(), 520);
     }, 2600);
   }
+}
+
+function chip(color: string, label: string): HTMLElement {
+  const el = document.createElement("span");
+  el.className = "chip";
+  const sw = document.createElement("i");
+  sw.style.background = color;
+  el.append(sw, document.createTextNode(label));
+  return el;
 }
 
 function btn(

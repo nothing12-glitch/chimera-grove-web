@@ -1,6 +1,7 @@
 import type { CropId } from "../data/crops";
 import type { PotionId } from "../data/potions";
 import type { SpiritId } from "../data/spirits";
+import type { World } from "../data/world";
 
 export type ToolKind = "hoe" | "can";
 export type Slot =
@@ -14,7 +15,7 @@ export const CAN_CAPACITY = 4;
 export const MOISTURE_MAX = 3;
 
 export type Save = {
-  v: 1;
+  v: 2;
   px: number;
   py: number;
   dir: Dir;
@@ -37,6 +38,9 @@ export type Save = {
   /** [speed, light, calm] seconds left */
   effects?: [number, number, number];
   growth?: number;
+  /** tile indices of dissolved passes and emptied hoards — the map remembers these */
+  opened?: number[];
+  looted?: number[];
 };
 
 export type Scene = "grove" | "roots";
@@ -82,7 +86,7 @@ export type Game = {
   growth: number;
 };
 
-const KEY = "chimeragrove.save.v1";
+const KEY = "chimeragrove.save.v2";
 
 export function newPotions(): Record<PotionId, number> {
   return { dew: 0, quintessence: 0, lamp_oil: 0, calm_wind: 0 };
@@ -138,13 +142,13 @@ export function newGame(): Game {
 
 export function saveGame(
   g: Game,
-  kind: Uint8Array,
+  w: World,
   plots: Save["plots"],
   spirits: Save["spirits"],
   roots: RootsSave,
 ): void {
   const data: Save = {
-    v: 1,
+    v: 2,
     px: g.px,
     py: g.py,
     dir: g.dir,
@@ -163,11 +167,13 @@ export function saveGame(
     potions: g.potions,
     effects: [g.effects.speed, g.effects.light, g.effects.calm],
     growth: g.growth,
+    opened: [...w.opened],
+    looted: [...w.looted],
   };
   try {
     localStorage.setItem(
       KEY,
-      JSON.stringify({ game: data, kind: Array.from(kind) }),
+      JSON.stringify({ game: data, kind: Array.from(w.kind) }),
     );
   } catch {
     /* storage full or blocked — the run still works in-memory */
@@ -179,7 +185,7 @@ export function loadGame(): { game: Save; kind: number[] } | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed?.game?.v !== 1) return null;
+    if (parsed?.game?.v !== 2) return null;
     return parsed;
   } catch {
     return null;

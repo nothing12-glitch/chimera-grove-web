@@ -2,27 +2,38 @@ import { buildSprite, buildTinted, flipX } from "../core/sprites";
 import {
   ALCHEMY_TABLE,
   BUSH,
+  CACHE,
+  CACHE_OPEN,
   CAVE_CAP,
   CAVE_DEBRIS,
+  CRYSTAL,
+  DEAD_TREE,
   DEEP_WELL,
   FENCE,
   FLASK,
   GRASS_TUFT,
+  MUSHROOM,
   MYCEL_NODE,
   MYCEL_SPENT,
+  PILLAR,
   PINE,
   PLAYER_DOWN,
   PLAYER_DOWN_WALK,
   PLAYER_SIDE,
   PLAYER_UP,
+  REED,
   ROCK,
+  ROCKFALL,
   ROUND_TREE,
+  RUBBLE,
+  SCREE,
   SEED_STALL,
   SHAFT_UP,
   SHRINE,
   SIGNPOST,
   SINKHOLE,
   STUMP,
+  SWAMP_TREE,
   TILLED,
   TILLED_WET_PAL,
   WATER_0,
@@ -43,9 +54,11 @@ import {
   MAP_H,
   MAP_W,
   TILE,
+  biomeAt,
   idx,
   objectAt,
   tileAt,
+  type BiomeId,
   type World,
 } from "../data/world";
 import { DAY_LENGTH, type Game } from "./state";
@@ -62,6 +75,71 @@ const EARTH_PAL = {
   s: "#8a6038",
   c: "#ffffff",
   d: "#ffffff",
+};
+
+/** Ground colours per biome: stone and old mortar get no green at all. */
+type GroundPal = {
+  tones: [string, string, string];
+  dabA: string;
+  dabB: string;
+  path: string;
+  pathA: string;
+  pathB: string;
+  shore: string;
+  scatter: "green" | "grey" | "dead";
+};
+
+const GROUND: Record<BiomeId, GroundPal> = {
+  home: {
+    tones: ["#33532c", "#35562e", "#385a30"],
+    dabA: "#47733f",
+    dabB: "#284222",
+    path: "#6d5236",
+    pathA: "#87663f",
+    pathB: "#5b4227",
+    shore: "#22404c",
+    scatter: "green",
+  },
+  thicket: {
+    tones: ["#1f3a24", "#22402a", "#26462e"],
+    dabA: "#35613b",
+    dabB: "#142519",
+    path: "#5a452e",
+    pathA: "#715a3a",
+    pathB: "#45341f",
+    shore: "#1b3540",
+    scatter: "green",
+  },
+  marsh: {
+    tones: ["#2c4033", "#33473a", "#3a4f40"],
+    dabA: "#55764f",
+    dabB: "#1c2b24",
+    path: "#4e4c30",
+    pathA: "#6b6842",
+    pathB: "#37361f",
+    shore: "#1f4340",
+    scatter: "green",
+  },
+  ridge: {
+    tones: ["#3a3d44", "#42464d", "#4a4f57"],
+    dabA: "#5c626d",
+    dabB: "#262a30",
+    path: "#5a5e66",
+    pathA: "#767b85",
+    pathB: "#3d4046",
+    shore: "#1d3138",
+    scatter: "grey",
+  },
+  ruins: {
+    tones: ["#3c3b33", "#43423a", "#4a4940"],
+    dabA: "#5f6a4c",
+    dabB: "#26261f",
+    path: "#5c5847",
+    pathA: "#78725c",
+    pathB: "#3f3c2f",
+    shore: "#21363c",
+    scatter: "dead",
+  },
 };
 
 export function spriteFor(kind: string): HTMLCanvasElement {
@@ -88,6 +166,28 @@ export function spriteFor(kind: string): HTMLCanvasElement {
       return buildSprite("sinkhole", SINKHOLE);
     case "table":
       return buildSprite("table", ALCHEMY_TABLE);
+    case "reed":
+      return buildSprite("reed", REED);
+    case "swamp_tree":
+      return buildSprite("swamp_tree", SWAMP_TREE);
+    case "mushroom":
+      return buildSprite("mushroom", MUSHROOM);
+    case "dead_tree":
+      return buildSprite("dead_tree", DEAD_TREE);
+    case "pillar":
+      return buildSprite("pillar", PILLAR);
+    case "crystal":
+      return buildSprite("crystal", CRYSTAL);
+    case "scree":
+      return buildSprite("scree", SCREE);
+    case "rockfall":
+      return buildSprite("rockfall", ROCKFALL);
+    case "rubble":
+      return buildSprite("rubble", RUBBLE);
+    case "cache":
+      return buildSprite("cache", CACHE);
+    case "cache_open":
+      return buildSprite("cache_open", CACHE_OPEN);
     default:
       return buildSprite("tuft", GRASS_TUFT);
   }
@@ -109,6 +209,17 @@ const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
   fence: { oy: 0, base: 16 },
   shrine: { oy: -8, base: 16 },
   table: { oy: -4, base: 20 },
+  reed: { oy: -6, base: 16 },
+  swamp_tree: { oy: -14, base: 16 },
+  mushroom: { oy: 2, base: 16 },
+  dead_tree: { oy: -12, base: 16 },
+  pillar: { oy: -10, base: 16 },
+  crystal: { oy: -2, base: 16 },
+  scree: { oy: 6, base: 16 },
+  rockfall: { oy: -10, base: 16 },
+  rubble: { oy: 4, base: 16 },
+  cache: { oy: 0, base: 16 },
+  cache_open: { oy: 0, base: 16 },
 };
 
 export class Renderer {
@@ -154,9 +265,21 @@ export class Renderer {
     cvs.height = MAP_H * TILE;
     const c = cvs.getContext("2d")!;
     const w = this.world;
+    // Tone field first: smooth noise picks the shade, so patches have curvy edges.
+    const tone = new Array<string | undefined>(MAP_W * MAP_H).fill(undefined);
     for (let ty = 0; ty < MAP_H; ty++) {
       for (let tx = 0; tx < MAP_W; tx++) {
         const kind = tileAt(w, tx, ty);
+        if (kind === "water" || kind === "path") continue;
+        const pal = GROUND[biomeAt(w, tx, ty)];
+        const n = valueNoise(tx, ty, 9);
+        tone[ty * MAP_W + tx] = pal.tones[n < 0.44 ? 0 : n < 0.74 ? 1 : 2];
+      }
+    }
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        const kind = tileAt(w, tx, ty);
+        const pal = GROUND[biomeAt(w, tx, ty)];
         const x = tx * TILE;
         const y = ty * TILE;
         if (kind === "water") {
@@ -165,36 +288,53 @@ export class Renderer {
           continue;
         }
         if (kind === "path") {
-          c.fillStyle = "#6d5236";
+          c.fillStyle = pal.path;
           c.fillRect(x, y, TILE, TILE);
-          dab(c, tx, ty, "#87663f", 5, 1);
-          dab(c, tx, ty, "#5b4227", 4, 2);
+          dab(c, tx, ty, pal.pathA, 5, 1);
+          dab(c, tx, ty, pal.pathB, 4, 2);
           continue;
         }
-        // Grass: one base tone plus low-frequency patches. Per-tile tones read as a grid.
-        const patch = hash(tx >> 2, ty >> 2);
-        c.fillStyle =
-          patch < 0.3 ? "#33532c" : patch < 0.65 ? "#35562e" : "#385a30";
+        c.fillStyle = tone[ty * MAP_W + tx]!;
         c.fillRect(x, y, TILE, TILE);
-        dab(c, tx, ty, "#47733f", 7, 3);
-        dab(c, tx, ty, "#284222", 5, 4);
+        dab(c, tx, ty, pal.dabA, 7, 3);
+        dab(c, tx, ty, pal.dabB, 5, 4);
       }
     }
-    // Damp shore where land meets the pond, so the water does not end on a hard edge.
+    // Dither a two-pixel fringe wherever two shades meet, so borders never draw a line.
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        const i = ty * MAP_W + tx;
+        const here = tone[i];
+        if (!here) continue;
+        const x = tx * TILE;
+        const y = ty * TILE;
+        for (const [dx, dy] of EDGE) {
+          const nx = tx + dx,
+            ny = ty + dy;
+          if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+          const there = tone[ny * MAP_W + nx];
+          if (!there || there === here) continue;
+          c.fillStyle = there;
+          for (let k = 0; k < TILE; k += 4) {
+            const o = (k + ((tx + ty) % 2) * 2) % TILE;
+            if (dx === -1) c.fillRect(x, y + o, 2, 2);
+            else if (dx === 1) c.fillRect(x + TILE - 2, y + o, 2, 2);
+            else if (dy === -1) c.fillRect(x + o, y, 2, 2);
+            else c.fillRect(x + o, y + TILE - 2, 2, 2);
+          }
+        }
+      }
+    }
+    // Damp shore where land meets open water, so it does not end on a hard edge.
     for (let ty = 1; ty < MAP_H - 1; ty++) {
       for (let tx = 1; tx < MAP_W - 1; tx++) {
         const k = tileAt(w, tx, ty);
         if (k === "water") continue;
         const x = tx * TILE;
         const y = ty * TILE;
-        for (const [dx, dy] of [
-          [0, -1],
-          [0, 1],
-          [-1, 0],
-          [1, 0],
-        ] as const) {
+        for (const [dx, dy] of EDGE) {
           if (tileAt(w, tx + dx, ty + dy) !== "water") continue;
-          c.fillStyle = "#22404c";
+          c.fillStyle = GROUND[biomeAt(w, tx, ty)].shore;
           if (dy === -1) c.fillRect(x, y, TILE, 2);
           else if (dy === 1) c.fillRect(x, y + TILE - 2, TILE, 2);
           else if (dx === -1) c.fillRect(x, y, 2, TILE);
@@ -202,18 +342,32 @@ export class Renderer {
         }
       }
     }
-    // Decoration pass: tufts and flowers only where nothing else stands.
+    // Decoration pass: what the biome can actually grow, and only where nothing stands.
+    const tuft = spriteFor("tuft");
+    const flower = buildSprite("flower", WILD_FLOWER);
     for (let ty = 1; ty < MAP_H - 1; ty++) {
       for (let tx = 1; tx < MAP_W - 1; tx++) {
         if (tileAt(w, tx, ty) !== "grass" || objectAt(w, tx, ty)) continue;
+        const pal = GROUND[biomeAt(w, tx, ty)];
         const r = hash(tx, ty);
-        if (r < 0.06) c.drawImage(spriteFor("tuft"), tx * TILE, ty * TILE - 2);
-        else if (r > 0.94)
-          c.drawImage(
-            buildSprite("flower", WILD_FLOWER),
-            tx * TILE,
-            ty * TILE - 2,
-          );
+        const x = tx * TILE;
+        const y = ty * TILE;
+        if (pal.scatter === "green") {
+          if (r < 0.06) c.drawImage(tuft, x, y - 2);
+          else if (r > 0.94) c.drawImage(flower, x, y - 2);
+        } else if (pal.scatter === "grey") {
+          if (r < 0.09) {
+            c.fillStyle = "#6d7480";
+            c.fillRect(x + 3 + Math.floor(r * 50), y + 9, 3, 2);
+          }
+        } else if (r < 0.05) {
+          c.fillStyle = "#55492f";
+          c.fillRect(x + 2 + Math.floor(r * 60), y + 4, 6, 1);
+        } else if (r > 0.96) {
+          c.fillStyle = "#4c5a3c";
+          c.fillRect(x + 6, y + 11, 1, 4);
+          c.fillRect(x + 8, y + 10, 1, 5);
+        }
       }
     }
     return cvs;
@@ -259,7 +413,12 @@ export class Renderer {
     c.save();
     c.translate(-cam.x + cam.shakeX, -cam.y + cam.shakeY);
 
-    c.drawImage(this.ground, 0, 0);
+    // The ground canvas spans the whole grove, so blit only the window in view.
+    const sw = VIEW_W + 16;
+    const sh = VIEW_H + 16;
+    const gx = clamp(cam.x - 8, 0, MAP_W * TILE - sw);
+    const gy = clamp(cam.y - 8, 0, MAP_H * TILE - sh);
+    c.drawImage(this.ground, gx, gy, sw, sh, gx, gy, sw, sh);
 
     // Animated water with per-tile glints so the pond never looks like a repeating grid.
     const base = Math.floor(t * 1.6) % 2;
@@ -805,6 +964,23 @@ const NEIGH8 = [
   [1, 1],
 ] as const;
 
+/** Bilinear value noise on a coarse lattice: blobs with soft, curvy isolines. */
+function valueNoise(tx: number, ty: number, cell: number): number {
+  const gx = Math.floor(tx / cell);
+  const gy = Math.floor(ty / cell);
+  const fx = tx / cell - gx;
+  const fy = ty / cell - gy;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const n00 = hash(gx, gy);
+  const n10 = hash(gx + 1, gy);
+  const n01 = hash(gx, gy + 1);
+  const n11 = hash(gx + 1, gy + 1);
+  const top = n00 + (n10 - n00) * sx;
+  const bot = n01 + (n11 - n01) * sx;
+  return top + (bot - top) * sy;
+}
+
 function hash(x: number, y: number): number {
   let h =
     Math.imul(x ^ 0x9e3779b9, 0x85ebca6b) ^
@@ -871,7 +1047,25 @@ function cavePropSprite(kind: PropKind): HTMLCanvasElement {
   }
 }
 
-export function loadWorldFromSave(w: World, kind: number[]): void {
+/**
+ * The ground tiles come out of the save; the props are regenerated from the same
+ * seed every boot, so only the two things a player permanently changes are replayed:
+ * which sealed passes are open and which hoards are already empty.
+ */
+export function loadWorldFromSave(
+  w: World,
+  kind: number[],
+  opened: number[] = [],
+  looted: number[] = [],
+): void {
+  for (const i of opened) {
+    w.opened.add(i);
+    if (w.obj[i] === "rockfall") w.obj[i] = "rubble";
+  }
+  for (const i of looted) {
+    w.looted.add(i);
+    if (w.obj[i] === "cache") w.obj[i] = "cache_open";
+  }
   w.kind.set(Uint8Array.from(kind));
   w.waterTiles.length = 0;
   for (let i = 0; i < kind.length; i++) {

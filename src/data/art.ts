@@ -1126,3 +1126,138 @@ export const FLASK: Sprite = rects(
   ],
   { l: "#8fb7ff" },
 );
+
+/* ---------- Biome props and world gates ---------- */
+
+const STONE_HI = "#b6bcc2";
+const BARK_DARK = "#3a2415";
+const REED_GREEN = "#4f7a4a";
+const REED_LIT = "#77ad5c";
+const REED_HEAD = "#8a6a2f";
+const CAP_PALE = "#cfd6e8";
+const CAP_ROSE = "#b06b6b";
+const CRYST = "#9fd8e8";
+const CRYST_DEEP = "#3f7a8c";
+const CRYST_LIT = "#d8fff7";
+
+/** Marsh reeds: a tight fan of blades with two drooping seed heads. */
+export const REED: Sprite = rects(16, 22, [
+  [2, 6, 1, 14, REED_GREEN],
+  [5, 3, 1, 17, REED_LIT],
+  [8, 7, 1, 13, REED_GREEN],
+  [11, 4, 1, 16, REED_LIT],
+  [14, 8, 1, 12, REED_GREEN],
+  [4, 1, 2, 4, REED_HEAD],
+  [10, 2, 2, 4, REED_HEAD],
+  [3, 12, 2, 1, REED_GREEN],
+  [9, 14, 2, 1, REED_LIT],
+]);
+
+/** A pale mushroom cluster that glows faintly in the deep thicket. */
+export const MUSHROOM: Sprite = rects(16, 14, [
+  [3, 5, 6, 3, CAP_ROSE],
+  [4, 4, 4, 1, CAP_ROSE],
+  [4, 8, 2, 5, CAP_PALE],
+  [10, 7, 4, 2, CAP_PALE],
+  [11, 9, 1, 4, CAP_PALE],
+  [4, 4, 2, 1, "#e8d0d0"],
+]);
+
+/** A crooked swamp tree, leafless and leaning over the water. */
+export const SWAMP_TREE: Sprite = rects(16, 30, [
+  [6, 12, 3, 18, BARK_DARK],
+  [7, 14, 1, 14, "#5b3b23"],
+  [6, 10, 6, 3, "#5b3b23"],
+  [10, 6, 3, 5, BARK_DARK],
+  [12, 4, 3, 2, BARK_DARK],
+  [3, 8, 4, 2, BARK_DARK],
+  [1, 6, 3, 2, "#5b3b23"],
+  [6, 28, 5, 2, BARK_DARK],
+]);
+
+/** A dead thicket tree: bare, split crown, pale bark. */
+export const DEAD_TREE: Sprite = rects(16, 28, [
+  [7, 8, 2, 20, "#7a6f5c"],
+  [6, 26, 4, 2, BARK_DARK],
+  [3, 4, 4, 2, "#7a6f5c"],
+  [1, 2, 3, 2, "#948a75"],
+  [9, 5, 5, 2, "#7a6f5c"],
+  [12, 2, 2, 4, "#948a75"],
+  [6, 12, 2, 2, "#948a75"],
+  [10, 16, 3, 2, "#7a6f5c"],
+]);
+
+/** Broken column from the forgotten orchard of ruins. */
+export const PILLAR: Sprite = rects(16, 26, [
+  [4, 22, 8, 4, STONE],
+  [5, 6, 6, 16, STONE_LIT],
+  [4, 4, 8, 3, STONE],
+  [5, 6, 1, 16, STONE_HI],
+  [6, 0, 5, 3, STONE_LIT],
+  [10, 1, 2, 2, STONE_DARK],
+  [4, 24, 8, 2, STONE_DARK],
+]);
+
+/** A cold crystal vein that grows out of the ridge stone. */
+export const CRYSTAL: Sprite = rects(16, 18, [
+  [6, 4, 3, 12, CRYST_DEEP],
+  [7, 2, 1, 10, CRYST],
+  [10, 8, 2, 8, CRYST_DEEP],
+  [11, 6, 1, 6, CRYST_LIT],
+  [3, 10, 2, 6, CRYST_DEEP],
+  [4, 9, 1, 4, CRYST],
+  [5, 16, 7, 2, STONE_DARK],
+]);
+
+/** Loose ridge scree: pretty, and you can walk over it. */
+export const SCREE: Sprite = rects(16, 10, [
+  [3, 6, 3, 3, STONE],
+  [7, 5, 4, 4, STONE_LIT],
+  [12, 7, 2, 2, STONE],
+  [5, 4, 2, 2, STONE_HI],
+  [9, 4, 1, 1, STONE_HI],
+]);
+
+/** The wall of fused stone that seals a pass. Only a Voidcap dissolves it. */
+export const ROCKFALL: Sprite = rects(16, 26, [
+  [0, 4, 16, 22, STONE_DARK],
+  [1, 6, 14, 18, STONE],
+  [2, 8, 5, 6, STONE_LIT],
+  [9, 12, 5, 7, STONE_LIT],
+  [3, 16, 4, 5, STONE],
+  [11, 6, 3, 4, STONE_HI],
+  [1, 4, 6, 3, STONE_LIT],
+  [7, 2, 5, 3, STONE],
+  [12, 1, 3, 2, STONE_LIT],
+  [4, 10, 2, 2, STONE_HI],
+  [0, 24, 16, 2, STONE_DARK],
+]);
+
+/** What is left once the pass has been dissolved: shattered footings. */
+export const RUBBLE: Sprite = rects(16, 12, [
+  [2, 8, 4, 4, STONE],
+  [7, 7, 5, 5, STONE_DARK],
+  [12, 9, 3, 3, STONE_LIT],
+  [4, 6, 2, 2, STONE_HI],
+  [9, 6, 2, 1, STONE],
+]);
+
+/** A root-knot hoard left by whoever farmed here before you. */
+export const CACHE: Sprite = rects(16, 16, [
+  [2, 6, 12, 8, "#5b3b23"],
+  [3, 7, 10, 6, "#8a6038"],
+  [2, 5, 12, 2, "#6b4728"],
+  [7, 9, 2, 3, "#e8bf5e"],
+  [1, 12, 3, 3, "#3f6d3a"],
+  [12, 11, 3, 4, "#4e8043"],
+  [5, 4, 6, 2, "#3f6d3a"],
+]);
+
+/** The same hoard, opened. */
+export const CACHE_OPEN: Sprite = rects(16, 16, [
+  [2, 8, 12, 6, "#5b3b23"],
+  [3, 9, 10, 4, "#241408"],
+  [2, 4, 12, 4, "#6b4728"],
+  [4, 5, 8, 2, "#3a2415"],
+  [11, 12, 3, 2, "#4e8043"],
+]);

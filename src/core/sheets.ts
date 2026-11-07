@@ -4,6 +4,8 @@
  * if a sheet never arrives, the renderer keeps its procedural art, so the
  * game runs offline, in tests and on a cold cache alike.
  */
+import { markSource } from "./sprites";
+
 const SHEETS = {
   floors: "floors.png",
   water: "water.png",
@@ -76,4 +78,83 @@ export function tileSome(
 ): HTMLCanvasElement | null {
   if (!refs.length) return null;
   return tile(name, refs[Math.abs(Math.floor(pick)) % refs.length], size);
+}
+
+/**
+ * One animation strip from the pack. The pack paints a creature inside a
+ * square `cell` with a lot of air around it, so `box` says which part of the
+ * cell the sprite really lives in; leaving it out takes the whole cell.
+ */
+export type PackClip = {
+  /** path under art/pack/ */
+  src: string;
+  /** the square the pack draws each frame inside */
+  cell: number;
+  /** how many frames the strip holds, read left to right, then down */
+  frames: number;
+  /** the part of a cell worth drawing: [x, y, w, h] */
+  box?: [number, number, number, number];
+};
+
+type PackSource = { img: HTMLImageElement; ready: boolean };
+
+const packSheets = new Map<string, PackSource>();
+const packCut = new Map<string, HTMLCanvasElement>();
+
+/** Ask for every strip the game means to play, alongside the tile sheets. */
+export function loadPack(clips: readonly PackClip[]): void {
+  for (const clip of clips) {
+    if (packSheets.has(clip.src)) continue;
+    const source: PackSource = { img: new Image(), ready: false };
+    packSheets.set(clip.src, source);
+    source.img.onload = () => {
+      source.ready = true;
+    };
+    source.img.onerror = () => {
+      source.ready = false;
+    };
+    source.img.src = new URL(`art/pack/${clip.src}`, document.baseURI).href;
+  }
+}
+
+/** True once every strip has either arrived or failed. */
+export function packSettled(): boolean {
+  for (const source of packSheets.values()) if (!source.img.complete) return false;
+  return true;
+}
+
+/**
+ * Frame `i` of a strip, cut to its box. Null until the sheet has arrived, so
+ * the renderer can keep its procedural drawing and swap over on its own.
+ */
+export function packFrame(
+  clip: PackClip,
+  i: number,
+): HTMLCanvasElement | null {
+  const source = packSheets.get(clip.src);
+  if (!source?.ready) return null;
+  const img = source.img;
+  if (img.width < clip.cell || img.height < clip.cell) return null;
+  const perRow = Math.floor(img.width / clip.cell);
+  const frame = ((i % clip.frames) + clip.frames) % clip.frames;
+  const bx = clip.box ? clip.box[0] : 0;
+  const by = clip.box ? clip.box[1] : 0;
+  const bw = clip.box ? clip.box[2] : clip.cell;
+  const bh = clip.box ? clip.box[3] : clip.cell;
+  const key = `${clip.src}:${frame}:${bx}:${by}:${bw}:${bh}`;
+  const hit = packCut.get(key);
+  if (hit) return hit;
+  if (frame >= perRow * Math.floor(img.height / clip.cell)) return null;
+  const x = (frame % perRow) * clip.cell + bx;
+  const y = Math.floor(frame / perRow) * clip.cell + by;
+  if (x + bw > img.width || y + bh > img.height) return null;
+  const cvs = document.createElement("canvas");
+  cvs.width = bw;
+  cvs.height = bh;
+  const c = cvs.getContext("2d")!;
+  c.imageSmoothingEnabled = false;
+  c.drawImage(img, x, y, bw, bh, 0, 0, bw, bh);
+  markSource(cvs);
+  packCut.set(key, cvs);
+  return cvs;
 }

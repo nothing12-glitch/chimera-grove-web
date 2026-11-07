@@ -64,7 +64,15 @@ import {
 } from "../data/enemies";
 import { SPIRITS, type SpiritDef } from "../data/spirits";
 import { MAT, surfaceFor } from "../data/tiles";
-import { tileSome } from "../core/sheets";
+import { packFrame, tileSome } from "../core/sheets";
+import {
+  BOSS_CREW,
+  BOSS_SCALE,
+  ENEMY_CREWS,
+  FPS,
+  PLAYER_CLIPS,
+  type Face,
+} from "../data/pack";
 import {
   CAVE_H,
   CAVE_W,
@@ -457,14 +465,39 @@ export class Renderer {
     return mirrored ? flipX(built) : built;
   }
 
-  /** The brief white shape a sickle blow lands with. */
-  enemySprite(e: Enemy): HTMLCanvasElement {
-    const built = buildSprite(`en_${e.id}`, ENEMY_ART[e.id]);
-    const spr = e.dir === "left" ? flipX(built) : built;
-    return e.flash > 0 ? silhouette(spr, "#f2e7ff") : spr;
+  /** A chimera, walked out of the pack: four breathing frames, six chasing ones. */
+  enemySprite(e: Enemy, t: number): HTMLCanvasElement {
+    const crew = ENEMY_CREWS[e.id];
+    const running = Math.abs(e.vx) + Math.abs(e.vy) > 1;
+    const spr = packFrame(crew[running ? "run" : "idle"], Math.floor(t * (running ? FPS.crewRun : FPS.crewIdle)));
+    const built = spr ?? buildSprite(`en_${e.id}`, ENEMY_ART[e.id]);
+    const mirrored = e.dir === "left" ? flipX(built) : built;
+    return e.flash > 0 ? silhouette(mirrored, "#f2e7ff") : mirrored;
   }
 
-  playerSprite(g: Game): HTMLCanvasElement {
+  /**
+   * The alchemist, played out of the pack: breathing when she stands, six
+   * frames when she walks, a flinch when the blow lands. Until a strip has
+   * arrived the old hand-drawn body stands in for it.
+   */
+  playerSprite(g: Game, t: number): HTMLCanvasElement {
+    const face: Face = g.dir === "left" || g.dir === "right" ? "side" : g.dir;
+    const set = PLAYER_CLIPS[face];
+    const anim =
+      g.hurt > HURT_LOCK - 0.2
+        ? "hit"
+        : !g.moving
+          ? "idle"
+          : g.effects.speed > 0
+            ? "run"
+            : "walk";
+    const spr = packFrame(set[anim], Math.floor(t * FPS[anim]));
+    if (!spr) return this.plainPlayer(g);
+    return g.dir === "left" ? flipX(spr) : spr;
+  }
+
+  /** The procedural body, kept for a cold cache and for tests. */
+  private plainPlayer(g: Game): HTMLCanvasElement {
     const step = Math.floor(g.anim) % 2;
     if (g.dir === "up")
       return buildSprite(
@@ -479,6 +512,38 @@ export class Renderer {
     const side = buildSprite("p_side", PLAYER_SIDE);
     if (g.dir === "left") return flipX(side);
     return side;
+  }
+
+  /**
+   * Pack frames carry their boots on the bottom edge and their body in the
+   * middle, so they go wherever the old flat sprite's feet were.
+   */
+  private static feetAt(
+    spr: HTMLCanvasElement,
+    cx: number,
+    feet: number,
+  ): { x: number; y: number } {
+    return { x: Math.round(cx - spr.width / 2), y: Math.round(feet - spr.height) };
+  }
+
+  /** The alchemist in the y-sort, whether she comes from the pack or from art.ts. */
+  private pushPlayer(
+    items: SceneItem[],
+    c: CanvasRenderingContext2D,
+    g: Game,
+    t: number,
+  ): void {
+    const cx = Math.round(g.px) + PLAYER_DOWN.w / 2;
+    const feet = Math.round(g.py) + PLAYER_DOWN.h;
+    const spr = this.hurtTint(g, this.playerSprite(g, t));
+    const at = Renderer.feetAt(spr, cx, feet);
+    items.push({
+      y: feet,
+      draw: () => {
+        shadow(c, cx, feet, 5);
+        c.drawImage(spr, at.x, at.y);
+      },
+    });
   }
 
   /**
@@ -497,16 +562,21 @@ export class Renderer {
       if (cull && !visible(Math.floor(e.x / TILE), Math.floor(e.y / TILE), cam))
         continue;
       const def = ENEMIES[e.id];
-      const spr = this.enemySprite(e);
-      const x = Math.round(e.x);
-      const y =
+      // The old flat sprite still owns the footprint: its centre is where the
+      // shadow goes, its bottom edge is the ground the pack boots stand on.
+      const box = buildSprite(`en_${e.id}`, ENEMY_ART[e.id]);
+      const spr = this.enemySprite(e, t);
+      const cx = Math.round(e.x) + box.width / 2;
+      const feet =
         Math.round(e.y) -
-        (def.hover ? 5 + Math.round(Math.sin(t * 2.6 + e.anim) * 2) : 0);
+        (def.hover ? 5 + Math.round(Math.sin(t * 2.6 + e.anim) * 2) : 0) +
+        box.height;
+      const at = Renderer.feetAt(spr, cx, feet);
       items.push({
-        y: y + spr.height - 2,
+        y: feet - 2,
         draw: () => {
-          shadow(c, x + spr.width / 2, y + spr.height - 1, 4);
-          c.drawImage(spr, x, y);
+          shadow(c, cx, feet - 1, 4);
+          c.drawImage(spr, at.x, at.y);
         },
       });
     }
@@ -530,12 +600,28 @@ export class Renderer {
       });
       return;
     }
-    const spr = buildSprite("boss_root_lord", ROOT_LORD);
+    const box = buildSprite("boss_root_lord", ROOT_LORD);
+    const charge = b.pattern === "chase" || b.pattern === "rise";
+    const clip = packFrame(
+      BOSS_CREW[charge ? "run" : "idle"],
+      Math.floor(t * (charge ? FPS.crewRun : FPS.crewIdle)),
+    );
+    const flat = clip ?? box;
+    const spr = b.flash > 0 ? silhouette(flat, "#ffe6c9") : flat;
+    const cx = x + box.width / 2;
+    const feet = y + box.height;
+    const size = spr.width * BOSS_SCALE;
     items.push({
-      y: y + spr.height,
+      y: feet,
       draw: () => {
-        shadow(c, x + 16, y + spr.height - 2, 13);
-        c.drawImage(b.flash > 0 ? silhouette(spr, "#ffe6c9") : spr, x, y);
+        shadow(c, cx, feet - 2, 13);
+        c.drawImage(
+          spr,
+          Math.round(cx - size / 2),
+          Math.round(feet - size),
+          size,
+          size,
+        );
       },
     });
   }
@@ -696,8 +782,6 @@ export class Renderer {
         });
       }
     }
-    const px = Math.round(g.px);
-    const py = Math.round(g.py);
     for (const s of spirits) {
       if (!visible(Math.floor(s.x / TILE), Math.floor(s.y / TILE), cam))
         continue;
@@ -716,14 +800,7 @@ export class Renderer {
         },
       });
     }
-    const playerSpr = this.playerSprite(g);
-    items.push({
-      y: py + 20,
-      draw: () => {
-        shadow(c, px + 8, py + 20, 5);
-        c.drawImage(this.hurtTint(g, playerSpr), px, py);
-      },
-    });
+    this.pushPlayer(items, c, g, t);
     this.pushHostiles(items, c, combat, t, cam, true);
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
@@ -794,16 +871,7 @@ export class Renderer {
       }
     }
 
-    const px = Math.round(g.px);
-    const py = Math.round(g.py);
-    const playerSpr = this.playerSprite(g);
-    items.push({
-      y: py + 20,
-      draw: () => {
-        shadow(c, px + 8, py + 20, 5);
-        c.drawImage(this.hurtTint(g, playerSpr), px, py);
-      },
-    });
+    this.pushPlayer(items, c, g, t);
     this.pushHostiles(items, c, combat, t, cam, false);
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();

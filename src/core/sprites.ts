@@ -45,6 +45,15 @@ export function buildSprite(key: string, sprite: Sprite): HTMLCanvasElement {
 
 const hexCache = new Map<string, [number, number, number, number]>();
 
+/**
+ * A canvas cut somewhere else (a pack frame, say) still needs an id before
+ * flipX or silhouette can cache its copy — otherwise two different sprites of
+ * the same size would share one flipped result.
+ */
+export function markSource(src: HTMLCanvasElement): void {
+  if (!srcIds.has(src)) srcIds.set(src, ++srcCount);
+}
+
 function parseHex(hex: string): [number, number, number, number] {
   const hit = hexCache.get(hex);
   if (hit) return hit;

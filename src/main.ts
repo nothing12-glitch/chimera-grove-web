@@ -7,7 +7,8 @@ import {
 } from "./core/input";
 import { buildSprite } from "./core/sprites";
 import { initSplash } from "./core/splash";
-import { artSettled, loadArt } from "./core/sheets";
+import { artSettled, loadArt, loadPack, packSettled } from "./core/sheets";
+import { PACK_CLIPS } from "./data/pack";
 import { HOE, SICKLE, WATERING_CAN } from "./data/art";
 import { BOSS, HP_MAX } from "./data/enemies";
 import { caveName, type Cave } from "./data/roots";
@@ -64,6 +65,7 @@ if (!canvasEl) throw new Error("#game canvas missing");
 const canvas: HTMLCanvasElement = canvasEl;
 const splash = initSplash();
 loadArt();
+loadPack(PACK_CLIPS);
 
 splash?.stage("Проростає гай…");
 const world: World = generateWorld();
@@ -329,6 +331,8 @@ let last = performance.now();
 let sinceSave = 0;
 let booted = false;
 let artOn = false;
+/** The strips land inside the first second; nobody waits on the network longer. */
+const packDeadline = last + 3000;
 
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -396,7 +400,9 @@ function frame(now: number): void {
       ? { name: BOSS.name, hp: combat.boss.hp, max: BOSS.hp }
       : null,
   );
-  if (!booted) {
+  // The loading screen holds until the pack strips are in hand, so the first
+  // thing anybody sees is the animated grove, never the stand-in drawings.
+  if (!booted && (packSettled() || now >= packDeadline)) {
     booted = true;
     splash?.stage(`День ${game.day} · гай прокинувся`);
     splash?.ready(showIntro);

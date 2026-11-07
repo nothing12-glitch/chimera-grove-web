@@ -7,9 +7,11 @@ import {
 } from "./core/input";
 import { buildSprite } from "./core/sprites";
 import { initSplash } from "./core/splash";
-import { HOE, WATERING_CAN } from "./data/art";
+import { HOE, SICKLE, WATERING_CAN } from "./data/art";
+import { BOSS, HP_MAX } from "./data/enemies";
 import { caveName, type Cave } from "./data/roots";
 import { generateWorld, type World } from "./data/world";
+import { Combat } from "./game/enemies";
 import { Hud, type BrewAction, type ShopAction } from "./game/hud";
 import { Minimap } from "./game/minimap";
 import {
@@ -90,6 +92,8 @@ if (saved) {
       calm: s.effects?.[2] ?? 0,
     },
     growth: s.growth ?? 0,
+    hp: s.hp ?? HP_MAX,
+    bossDowned: s.bossDowned ?? false,
   };
   world.plots.clear();
   for (const [i, moisture, points, crop, sway] of s.plots) {
@@ -140,10 +144,12 @@ if (game.scene === "roots") {
 
 /** The same grove always hides the same tunnels: the sinkhole seeds every layer. */
 const worldSeed = (0x5eed + homeMouth.tx * 7919 + homeMouth.ty * 104729) >>> 0;
+const combat = new Combat();
 const ctx: Ctx = {
   spirits,
   run,
   cave: game.scene === "roots" ? openLayer(run.layer, worldSeed, run) : null,
+  combat,
 };
 
 const events: Events = {
@@ -217,7 +223,9 @@ hud.onBrewAction((a: BrewAction) => {
 hud.onBrewClose(() => closeBrew());
 hud.onShopClose(() => closeShop());
 hud.onMapClose(() => closeMap());
-hud.onMapToggle(() => hud.setMap(!hud.mapOpen, minimap, game, spirits));
+hud.onMapToggle(() =>
+  hud.setMap(!hud.mapOpen, minimap, game, spirits, combat.enemies),
+);
 hud.onHelpToggle((open) => hud.setHelp(open));
 hud.onReset(() => {
   // The unload save must not resurrect the run we are about to erase.
@@ -346,18 +354,38 @@ function frame(now: number): void {
 
   tickTime(game, world, dt, events, ctx);
   if (game.skip <= 0) stepSpirits(spirits, game, world, dt);
+  // Nobody hunts you while you are asleep, in a menu, or waiting for dawn.
+  const felled =
+    !blocked &&
+    game.skip <= 0 &&
+    combat.update(game, world, ctx.cave, dt, events);
+  if (felled) {
+    combat.collapse(game, world, events);
+    ctx.cave = null;
+    run.layer = 0;
+    run.tide = 0;
+    run.haul = 0;
+    commit(game, world, ctx);
+  }
   stepFx(fx, dt);
   renderer.shake = Math.max(0, renderer.shake - dt * 1.6);
 
-  if (ctx.cave) renderer.drawCave(game, ctx.cave, run, fx, now / 1000);
-  else renderer.draw(game, fx, now / 1000, spirits);
+  if (ctx.cave)
+    renderer.drawCave(game, ctx.cave, run, fx, now / 1000, combat);
+  else renderer.draw(game, fx, now / 1000, spirits, combat);
   if (world.opened.size !== openedSeen) {
     openedSeen = world.opened.size;
     minimap.invalidate();
   }
-  if (hud.mapOpen) hud.setMap(true, minimap, game, spirits);
+  if (hud.mapOpen) hud.setMap(true, minimap, game, spirits, combat.enemies);
   hud.setPlace(minimap.name(game));
-  hud.setRadar(minimap, game, spirits, game.scene === "grove" && !ctx.cave);
+  const radarOn = game.scene === "grove" && !ctx.cave;
+  hud.setRadar(minimap, game, spirits, radarOn, combat.enemies);
+  hud.setBoss(
+    combat.boss
+      ? { name: BOSS.name, hp: combat.boss.hp, max: BOSS.hp }
+      : null,
+  );
   if (!booted) {
     booted = true;
     splash?.stage(`День ${game.day} · гай прокинувся`);
@@ -397,7 +425,11 @@ function showIntro(): void {
     hud.toast(`Світанок дня ${game.day}. Город чекає на тебе.`, "info");
   else {
     hud.toast("Ти вигнаний алхімік. Почни з Місячної Пелюстки.", "info");
-    hud.toast("Мотика — 1, лійка — 2, насіння — 3-7. Дія: E.", "info");
+    hud.toast("Мотика — 1, лійка — 2, насіння — 3-7, серп — 8. Дія: E.", "info");
+    hud.toast(
+      "У серпні один замах знімає 5 очок. Уночі гай повен зубів — бережи десять сердець.",
+      "info",
+    );
     hud.toast(
       "У гаю живуть три духи. Пригости їх урожаєм — вони віддячать.",
       "info",
@@ -436,6 +468,7 @@ if (import.meta.env.DEV) {
     spirits,
     run,
     ctx,
+    combat,
     minimap,
     worldSeed,
     descendTo,
@@ -455,9 +488,9 @@ if (import.meta.env.DEV) {
 
 function slotIcon(r: Renderer, slot: Slot): HTMLCanvasElement | null {
   if (slot.kind === "tool") {
-    return slot.tool === "hoe"
-      ? buildSprite("ui_hoe", HOE)
-      : buildSprite("ui_can", WATERING_CAN);
+    if (slot.tool === "hoe") return buildSprite("ui_hoe", HOE);
+    if (slot.tool === "can") return buildSprite("ui_can", WATERING_CAN);
+    return buildSprite("ui_sickle", SICKLE);
   }
   if (slot.kind === "seed") return r.cropSprite(slot.crop, 3);
   return null;

@@ -13,6 +13,7 @@ import {
 } from "../data/world";
 import type { Game } from "./state";
 import type { Spirit } from "./spirits";
+import type { Enemy } from "./enemies";
 import { VIEW_H, VIEW_W } from "./render";
 
 /** One pixel per tile: the whole grove is a 200x120 thumbnail. */
@@ -38,6 +39,7 @@ const OPEN = "#7fc4d8";
 const MOUTH = "#b487e8";
 const HOARD = "#ffd98a";
 const SPIRIT_DOT = "#8fd6c0";
+const FOE = "#e0503a";
 const SELF = "#ffe9a8";
 const FRAME = "#eaf4ff";
 
@@ -100,6 +102,7 @@ export class Minimap {
     target: HTMLCanvasElement,
     g: Game,
     spirits: Spirit[],
+    foes: Enemy[] = [],
     radius = 34,
   ): void {
     const size = radius * 2 + 1;
@@ -133,11 +136,19 @@ export class Minimap {
     for (const s of this.world.sinkholes) mark(s.tx, s.ty, MOUTH);
     for (const s of spirits)
       mark(Math.floor(s.x / TILE), Math.floor(s.y / TILE), SPIRIT_DOT);
+    // Red on the radar means something with teeth is between you and home.
+    for (const e of foes)
+      mark(Math.floor(e.x / TILE), Math.floor(e.y / TILE), FOE);
     c.fillStyle = SELF;
     c.fillRect(radius - 1, radius - 1, 3, 3);
   }
 
-  paint(target: HTMLCanvasElement, g: Game, spirits: Spirit[]): void {
+  paint(
+    target: HTMLCanvasElement,
+    g: Game,
+    spirits: Spirit[],
+    foes: Enemy[] = [],
+  ): void {
     target.width = MAP_W;
     target.height = MAP_H;
     const c = target.getContext("2d")!;
@@ -156,6 +167,8 @@ export class Minimap {
     for (const v of this.world.vaults) stamp(v.tx, v.ty, "#f2f7ff", 1);
     for (const s of spirits)
       stamp(Math.floor(s.x / TILE), Math.floor(s.y / TILE), SPIRIT_DOT, 1);
+    for (const e of foes)
+      stamp(Math.floor(e.x / TILE), Math.floor(e.y / TILE), FOE, 1);
     const here = this.tileOf(g);
     stamp(here.tx, here.ty, SELF, 3);
     const halfW = VIEW_W / TILE / 2;

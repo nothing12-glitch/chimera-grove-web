@@ -1,9 +1,10 @@
 import type { CropId } from "../data/crops";
+import { HP_MAX } from "../data/enemies";
 import type { PotionId } from "../data/potions";
 import type { SpiritId } from "../data/spirits";
 import type { World } from "../data/world";
 
-export type ToolKind = "hoe" | "can";
+export type ToolKind = "hoe" | "can" | "sickle";
 export type Slot =
   | { kind: "tool"; tool: ToolKind }
   | { kind: "seed"; crop: CropId }
@@ -41,6 +42,10 @@ export type Save = {
   /** tile indices of dissolved passes and emptied hoards — the map remembers these */
   opened?: number[];
   looted?: number[];
+  /** absent in saves written before the grove grew teeth */
+  hp?: number;
+  /** the crown stays dead once it has been cut down */
+  bossDowned?: boolean;
 };
 
 export type Scene = "grove" | "roots";
@@ -84,6 +89,14 @@ export type Game = {
   effects: Effects;
   /** dawns of doubled growth still owed by the Quintessence */
   growth: number;
+  /** hit points; the sickle is the only thing that keeps them from draining */
+  hp: number;
+  /** seconds of the swing arc still on screen */
+  swing: number;
+  /** mercy seconds after a hit, during which contact does nothing */
+  hurt: number;
+  /** the Crown of the Root Network has been cut down for good */
+  bossDowned: boolean;
 };
 
 const KEY = "chimeragrove.save.v2";
@@ -125,7 +138,7 @@ export function newGame(): Game {
       { kind: "seed", crop: "glass_fern" },
       { kind: "seed", crop: "voidcap" },
       { kind: "seed", crop: "whisper_vine" },
-      { kind: "empty" },
+      { kind: "tool", tool: "sickle" },
     ],
     selected: 2,
     seeds,
@@ -137,6 +150,10 @@ export function newGame(): Game {
     potions: newPotions(),
     effects: { ...NO_EFFECTS },
     growth: 0,
+    hp: HP_MAX,
+    swing: 0,
+    hurt: 0,
+    bossDowned: false,
   };
 }
 
@@ -169,6 +186,8 @@ export function saveGame(
     growth: g.growth,
     opened: [...w.opened],
     looted: [...w.looted],
+    hp: g.hp,
+    bossDowned: g.bossDowned,
   };
   try {
     localStorage.setItem(

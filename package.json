@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:art": "node scripts/check-art.ts",
-    "check:world": "node --import ./scripts/ts-run.mjs scripts/check-world.ts"
+    "check:world": "node --import ./scripts/ts-run.mjs scripts/check-world.ts",
+    "check:combat": "node --import ./scripts/ts-run.mjs scripts/check-combat.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

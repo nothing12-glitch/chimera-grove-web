@@ -206,6 +206,90 @@ canvas#game {
   background: linear-gradient(90deg, #8a3f36, #e0796a);
 }
 
+/* Ten hearts: what the sickle has to keep from draining. */
+.hearts {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 8px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.hearts i {
+  width: 9px;
+  height: 9px;
+  background: rgba(120, 140, 125, 0.3);
+  clip-path: polygon(
+    50% 100%,
+    4% 46%,
+    4% 16%,
+    27% 2%,
+    50% 20%,
+    73% 2%,
+    96% 16%,
+    96% 46%
+  );
+}
+
+.hearts i.on {
+  background: #d9463a;
+}
+
+.hearts.low {
+  border-color: rgba(224, 121, 106, 0.6);
+}
+
+.hearts.low i.on {
+  background: #ff8a6a;
+}
+
+/* The crown's own bar, while it is awake. */
+.boss {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(22, 12, 10, 0.9);
+  border: 1px solid rgba(224, 121, 106, 0.45);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: #f0d9c9;
+}
+
+.boss[hidden] {
+  display: none;
+}
+
+.boss .bname {
+  letter-spacing: 0.05em;
+  color: #e8b48a;
+}
+
+.boss .bbar {
+  position: relative;
+  width: 170px;
+  height: 8px;
+  background: rgba(9, 6, 16, 0.85);
+  border: 1px solid rgba(224, 121, 106, 0.35);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.boss .bbar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #7a3b2c, #e0796a);
+  transition: width 0.15s linear;
+}
+
 /* Active brews, stacked under the depth panel. */
 .buffs {
   position: absolute;

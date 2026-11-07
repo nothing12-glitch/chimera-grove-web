@@ -24,10 +24,17 @@ import {
   type Dir,
   type Game,
 } from "./state";
+import { HP_MAX } from "../data/enemies";
 import { SPIRITS, TRUST_MAX, type SpiritId } from "../data/spirits";
 import { caveName, type Cave } from "../data/roots";
 import { caveHint, interactCave, rootsDawn, type RootsRun } from "./roots";
 import { feedSpirit, spiritDawn, spiritInReach, type Spirit } from "./spirits";
+import {
+  healFully,
+  nearestTarget,
+  targetInReach,
+  type Combat,
+} from "./enemies";
 
 export type FX = {
   x: number;
@@ -48,8 +55,13 @@ export type Events = {
   ascend(): void;
 };
 
-/** Everything a rule needs beyond the game and the grove: the three spirits and the active dive. */
-export type Ctx = { spirits: Spirit[]; run: RootsRun; cave: Cave | null };
+/** Everything a rule needs beyond the game and the grove: spirits, the active dive and whatever has teeth. */
+export type Ctx = {
+  spirits: Spirit[];
+  run: RootsRun;
+  cave: Cave | null;
+  combat: Combat;
+};
 
 export function facingTile(g: Game): { tx: number; ty: number } {
   const cx = Math.floor((g.px + 8) / 16);
@@ -205,6 +217,11 @@ export type Hint = { label: string; key: string };
 
 export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
   if (g.shopOpen || g.brewOpen) return null;
+  const armed = g.slots[g.selected];
+  if (armed.kind === "tool" && armed.tool === "sickle") {
+    const foe = nearestTarget(g, ctx.combat);
+    if (foe) return { key: "E", label: `Розмахнути серпом: ${foe}` };
+  }
   if (ctx.cave && g.scene === "roots") return caveHint(g, ctx.run, ctx.cave);
   const mouth = sinkholeNear(g, w);
   if (mouth)
@@ -284,6 +301,15 @@ export function stageOf(plot: Plot): number {
 /** Primary interaction: cave node / climb / descend, or feed a spirit / till / plant / water / refill / harvest / open shop. */
 export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
   if (g.shopOpen || g.brewOpen) return;
+  const armed = g.slots[g.selected];
+  if (
+    armed.kind === "tool" &&
+    armed.tool === "sickle" &&
+    targetInReach(g, ctx.combat)
+  ) {
+    ctx.combat.swing(g, ev);
+    return;
+  }
   const spirits = ctx.spirits;
   if (ctx.cave && g.scene === "roots") {
     const outcome = interactCave(g, ctx.run, ctx.cave, ev);
@@ -433,6 +459,9 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
 export function advanceDay(g: Game, w: World, ev: Events, ctx: Ctx): void {
   g.day += 1;
   g.dayTime = 0;
+  // A night above ground is the only doctor the grove can afford.
+  const wounded = !ctx.cave && g.hp < HP_MAX;
+  if (!ctx.cave) healFully(g);
   let grew = 0;
   let dried = 0;
   for (const [, plot] of w.plots) {
@@ -460,6 +489,7 @@ export function advanceDay(g: Game, w: World, ev: Events, ctx: Ctx): void {
   else if (grew) ev.toast(`День ${g.day}: ${grew} грядок виросло`);
   if (dried) ev.toast(`${dried} грядкам потрібна вода`, "bad");
   spiritDawn(ctx.spirits, g, w, ev);
+  if (wounded) ev.toast("Ніч лікує: серця знову повні", "good");
   if (ctx.cave) rootsDawn(ctx.run, ctx.cave);
   commit(g, w, ctx);
 }
@@ -481,6 +511,8 @@ export function tickTime(
   for (const key of ["speed", "light", "calm"] as const) {
     if (g.effects[key] > 0) g.effects[key] = Math.max(0, g.effects[key] - dt);
   }
+  if (g.swing > 0) g.swing = Math.max(0, g.swing - dt);
+  if (g.hurt > 0) g.hurt = Math.max(0, g.hurt - dt);
   if (g.skip > 0) {
     g.skip -= dt;
     g.dayTime += dt * (DAY_LENGTH / 0.5);

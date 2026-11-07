@@ -798,6 +798,21 @@ export const WATERING_CAN = rects(16, 16, [
   [3, 6, 8, 1, "#d9a441"],
 ]);
 
+/** The blade the alchemist keeps in the last slot for anything with teeth. */
+export const SICKLE = rects(16, 16, [
+  [2, 13, 3, 2, WOOD_D],
+  [4, 11, 2, 2, WOOD],
+  [6, 9, 2, 2, WOOD_D],
+  [8, 8, 2, 1, STEEL_D],
+  [9, 7, 3, 2, STEEL],
+  [11, 5, 4, 2, STEEL],
+  [13, 3, 3, 2, "#d7dce1"],
+  [11, 2, 3, 1, "#d7dce1"],
+  [9, 2, 2, 1, STEEL],
+  [8, 3, 2, 1, STEEL_D],
+  [11, 4, 2, 1, "#eef2f6"],
+]);
+
 export const COIN = rects(8, 8, [
   [2, 0, 4, 1, "#8a6a2f"],
   [1, 1, 6, 5, "#e8bf5e"],
@@ -1260,4 +1275,105 @@ export const CACHE_OPEN: Sprite = rects(16, 16, [
   [2, 4, 12, 4, "#6b4728"],
   [4, 5, 8, 2, "#3a2415"],
   [11, 12, 3, 2, "#4e8043"],
+]);
+
+/* ------------------------------------------------------------------ *
+ * Hostile chimeras. Everything here wants something from the grove,
+ * and the alchemist has only a sickle to say no with.
+ * ------------------------------------------------------------------ */
+
+/** A thorn mote that drifts over the thicket after dark. */
+export const WISP: Sprite = rects(12, 12, [
+  [4, 0, 4, 2, "#e6c9ff"],
+  [2, 2, 8, 6, "#a884c9"],
+  [3, 3, 6, 4, "#6f4d8c"],
+  [5, 4, 2, 2, "#ffe9a8"],
+  [1, 8, 10, 1, "#4a3358"],
+  [3, 9, 2, 2, "#4a3358"],
+  [7, 9, 2, 2, "#4a3358"],
+]);
+
+/** A hunched shell of wet reeds that lives in the marsh. */
+export const MARSH_HUSK: Sprite = rects(16, 14, [
+  [3, 4, 10, 8, "#3f5a3a"],
+  [4, 5, 8, 6, "#54704a"],
+  [2, 3, 4, 3, "#6d8a5c"],
+  [9, 2, 5, 3, "#7f9a6a"],
+  [11, 3, 2, 1, "#e6f2a8"],
+  [13, 6, 2, 5, "#8a7a4a"],
+  [3, 12, 3, 2, "#2b3a26"],
+  [9, 12, 3, 2, "#2b3a26"],
+]);
+
+/** Stone crab: the thing that clicks in the ridges at noon. */
+export const RIDGE_STALKER: Sprite = rects(16, 12, [
+  [2, 4, 12, 7, "#4a4f57"],
+  [3, 5, 10, 5, "#5c626d"],
+  [1, 6, 2, 3, "#3a3d44"],
+  [13, 6, 2, 3, "#3a3d44"],
+  [5, 3, 2, 2, "#7fc4d8"],
+  [9, 3, 2, 2, "#7fc4d8"],
+  [4, 11, 2, 1, "#2f3238"],
+  [10, 11, 2, 1, "#2f3238"],
+]);
+
+/** Pale root worm of the upper tunnels. */
+export const ROOT_CRAWLER: Sprite = rects(16, 12, [
+  [1, 6, 4, 4, "#b6a98c"],
+  [4, 4, 4, 5, "#c9bd9f"],
+  [7, 3, 4, 5, "#b6a98c"],
+  [10, 2, 4, 5, "#c9bd9f"],
+  [12, 3, 2, 2, "#e0503a"],
+  [2, 10, 3, 2, "#8a7a5c"],
+  [7, 8, 3, 2, "#8a7a5c"],
+]);
+
+/** Bloated spore sack that grows in the deep dark. */
+export const SPORE_BLOAT: Sprite = rects(14, 16, [
+  [3, 2, 8, 6, "#8f6fb0"],
+  [4, 3, 6, 4, "#b48ce0"],
+  [5, 4, 2, 2, "#e6c9ff"],
+  [5, 8, 4, 6, "#d8cdb4"],
+  [4, 13, 6, 2, "#a89a80"],
+  [2, 6, 1, 3, "#e6c9ff"],
+  [11, 5, 1, 3, "#e6c9ff"],
+]);
+
+/** The crown that rules the Root Network: moss, old wood and two red coals. */
+export const ROOT_LORD: Sprite = rects(32, 30, [
+  [8, 10, 16, 14, "#4a3a26"],
+  [9, 12, 14, 10, "#6b4f2e"],
+  [6, 8, 20, 4, "#3f5a3a"],
+  [10, 2, 2, 7, "#8a6f42"],
+  [15, 0, 2, 9, "#a8895a"],
+  [20, 2, 2, 7, "#8a6f42"],
+  [13, 16, 3, 3, "#e0503a"],
+  [18, 16, 3, 3, "#e0503a"],
+  [14, 17, 1, 1, "#ffd98a"],
+  [19, 17, 1, 1, "#ffd98a"],
+  [4, 22, 4, 7, "#3a2a1a"],
+  [24, 22, 4, 7, "#3a2a1a"],
+  [12, 24, 8, 5, "#3a2a1a"],
+  [11, 20, 10, 2, "#3a2a1a"],
+]);
+
+/** The crescent a sickle leaves in the air, frame by frame. */
+export const SWING_0: Sprite = rects(20, 20, [
+  [2, 8, 3, 2, "#dfe9f2"],
+  [4, 6, 3, 2, "#c3d2e0"],
+  [7, 5, 3, 2, "#eef4fa"],
+]);
+
+export const SWING_1: Sprite = rects(20, 20, [
+  [2, 10, 3, 2, "#c3d2e0"],
+  [4, 7, 3, 3, "#eef4fa"],
+  [7, 4, 4, 3, "#dfe9f2"],
+  [11, 4, 3, 2, "#c3d2e0"],
+]);
+
+export const SWING_2: Sprite = rects(20, 20, [
+  [3, 12, 4, 2, "#c3d2e0"],
+  [6, 9, 4, 3, "#eef4fa"],
+  [10, 5, 5, 3, "#dfe9f2"],
+  [15, 4, 3, 2, "#c3d2e0"],
 ]);

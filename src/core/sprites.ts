@@ -6,6 +6,9 @@ export type Sprite = {
 };
 
 const cache = new Map<string, HTMLCanvasElement>();
+/** Same-size sprites must not share a flipped cache entry. */
+const srcIds = new WeakMap<HTMLCanvasElement, number>();
+let srcCount = 0;
 
 export function buildSprite(key: string, sprite: Sprite): HTMLCanvasElement {
   const hit = cache.get(key);
@@ -36,6 +39,7 @@ export function buildSprite(key: string, sprite: Sprite): HTMLCanvasElement {
   }
   ctx.putImageData(img, 0, 0);
   cache.set(key, cvs);
+  srcIds.set(cvs, ++srcCount);
   return cvs;
 }
 
@@ -65,7 +69,7 @@ export function buildTinted(
 }
 
 export function flipX(src: HTMLCanvasElement): HTMLCanvasElement {
-  const key = `flip:${src.width}x${src.height}`;
+  const key = `flip:${srcIds.get(src) ?? 0}:${src.width}x${src.height}`;
   const cached = cache.get(key);
   if (cached) return cached;
   const cvs = document.createElement("canvas");
@@ -77,5 +81,27 @@ export function flipX(src: HTMLCanvasElement): HTMLCanvasElement {
   ctx.scale(-1, 1);
   ctx.drawImage(src, 0, 0);
   cache.set(key, cvs);
+  srcIds.set(cvs, ++srcCount);
+  return cvs;
+}
+
+/** The sprite's shape filled with one flat colour — the white of a landed hit. */
+export function silhouette(
+  src: HTMLCanvasElement,
+  color: string,
+): HTMLCanvasElement {
+  const key = `flat:${srcIds.get(src) ?? 0}:${color}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const cvs = document.createElement("canvas");
+  cvs.width = src.width;
+  cvs.height = src.height;
+  const ctx = cvs.getContext("2d")!;
+  ctx.drawImage(src, 0, 0);
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, src.width, src.height);
+  cache.set(key, cvs);
+  srcIds.set(cvs, ++srcCount);
   return cvs;
 }

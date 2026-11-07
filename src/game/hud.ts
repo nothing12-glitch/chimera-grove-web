@@ -12,8 +12,16 @@ import {
   type PotionId,
 } from "../data/potions";
 import { SPIRITS, SPIRIT_ORDER, TRUST_MAX } from "../data/spirits";
+import { HP_MAX } from "../data/enemies";
 import { BIOME_LEGEND, MARK_LEGEND, type Minimap } from "./minimap";
-import { CAN_CAPACITY, DAY_LENGTH, type Game, type Slot } from "./state";
+import type { Enemy } from "./enemies";
+import {
+  CAN_CAPACITY,
+  DAY_LENGTH,
+  type Game,
+  type Slot,
+  type ToolKind,
+} from "./state";
 import type { Spirit } from "./spirits";
 import type { Hint } from "./systems";
 
@@ -29,6 +37,14 @@ export type SpiritView = {
 };
 
 export type CaveView = { name: string; layer: number; tide: number };
+
+export type BossView = { name: string; hp: number; max: number };
+
+const TOOL_NAME: Record<ToolKind, string> = {
+  hoe: "Мотика",
+  can: "Лійка",
+  sickle: "Серп",
+};
 
 type IconResolver = (slot: Slot) => HTMLCanvasElement | null;
 
@@ -64,6 +80,11 @@ export class Hud {
   private caveNameEl = must<HTMLSpanElement>("#cave-name");
   private tideFill = must<HTMLElement>("#cave-tide");
   private tideLabel = must<HTMLSpanElement>("#cave-tide-text");
+  private heartBox = must<HTMLDivElement>("#stat-hp");
+  private bossBox = must<HTMLDivElement>("#boss-view");
+  private bossName = must<HTMLSpanElement>("#boss-name");
+  private bossFill = must<HTMLElement>("#boss-fill");
+  private hearts: HTMLElement[] = [];
   private spiritRows: {
     el: HTMLDivElement;
     dots: HTMLSpanElement;
@@ -120,6 +141,12 @@ export class Hud {
       this.spiritBox.append(el);
       this.spiritRows.push({ el, dots, want });
     });
+
+    for (let i = 0; i < HP_MAX / 2; i++) {
+      const heart = document.createElement("i");
+      this.heartBox.append(heart);
+      this.hearts.push(heart);
+    }
   }
 
   onSlotClick(cb: (index: number) => void): void {
@@ -188,6 +215,9 @@ export class Hud {
     this.clock.textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
     this.coins.textContent = String(g.coins);
     this.water.textContent = `${g.charges}/${CAN_CAPACITY}`;
+    const lit = Math.ceil(g.hp / 2);
+    this.hearts.forEach((h, i) => h.classList.toggle("on", i < lit));
+    this.heartBox.classList.toggle("low", g.hp <= HP_MAX * 0.3);
     this.ready.classList.toggle("on", readyCount > 0);
     this.ready.textContent = readyCount ? `Готово до збору: ${readyCount}` : "";
 
@@ -262,9 +292,7 @@ export class Hud {
         cell.count.classList.remove("zero");
         cell.el.dataset.label =
           slot.kind === "tool"
-            ? slot.tool === "can"
-              ? "Лійка"
-              : "Мотика"
+            ? TOOL_NAME[slot.tool]
             : "Порожньо";
       }
       cell.count.textContent = label;
@@ -374,11 +402,17 @@ export class Hud {
   }
 
   /** The whole map is drawn every frame the panel is open — it is only 200x120 pixels. */
-  setMap(open: boolean, m: Minimap, g: Game, spirits: Spirit[]): void {
+  setMap(
+    open: boolean,
+    m: Minimap,
+    g: Game,
+    spirits: Spirit[],
+    foes: Enemy[] = [],
+  ): void {
     this.mapShown = open;
     this.map.hidden = !open;
     if (!open) return;
-    m.paint(this.mapCanvas, g, spirits);
+    m.paint(this.mapCanvas, g, spirits, foes);
     if (!this.mapLegendFilled) {
       this.mapLegendFilled = true;
       this.mapLegend.replaceChildren(
@@ -397,9 +431,24 @@ export class Hud {
   }
 
   /** The corner radar mirrors the big map, so you always know where home is. */
-  setRadar(m: Minimap, g: Game, spirits: Spirit[], shown: boolean): void {
+  setRadar(
+    m: Minimap,
+    g: Game,
+    spirits: Spirit[],
+    shown: boolean,
+    foes: Enemy[] = [],
+  ): void {
     this.radar.hidden = !shown;
-    if (shown) m.paintWindow(this.radar, g, spirits);
+    if (shown) m.paintWindow(this.radar, g, spirits, foes);
+  }
+
+  /** The crown gets its own bar; you should always know how far it still has to go. */
+  setBoss(boss: BossView | null): void {
+    this.bossBox.hidden = !boss;
+    if (!boss) return;
+    this.bossName.textContent = boss.name;
+    const pct = (Math.max(0, boss.hp) / boss.max) * 100;
+    this.bossFill.style.width = `${Math.round(pct)}%`;
   }
 
   onMapToggle(cb: () => void): void {

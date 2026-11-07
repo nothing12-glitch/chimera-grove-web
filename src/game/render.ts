@@ -1,4 +1,10 @@
-import { buildSprite, buildTinted, flipX } from "../core/sprites";
+import {
+  buildSprite,
+  buildTinted,
+  flipX,
+  silhouette,
+  type Sprite,
+} from "../core/sprites";
 import {
   ALCHEMY_TABLE,
   BUSH,
@@ -12,6 +18,7 @@ import {
   FENCE,
   FLASK,
   GRASS_TUFT,
+  MARSH_HUSK,
   MUSHROOM,
   MYCEL_NODE,
   MYCEL_SPENT,
@@ -22,8 +29,11 @@ import {
   PLAYER_SIDE,
   PLAYER_UP,
   REED,
+  RIDGE_STALKER,
   ROCK,
   ROCKFALL,
+  ROOT_CRAWLER,
+  ROOT_LORD,
   ROUND_TREE,
   RUBBLE,
   SCREE,
@@ -32,6 +42,10 @@ import {
   SHRINE,
   SIGNPOST,
   SINKHOLE,
+  SPORE_BLOAT,
+  SWING_0,
+  SWING_1,
+  SWING_2,
   STUMP,
   SWAMP_TREE,
   TILLED,
@@ -39,8 +53,15 @@ import {
   WATER_0,
   WATER_1,
   WILD_FLOWER,
+  WISP,
 } from "../data/art";
 import { CROPS } from "../data/crops";
+import {
+  ENEMIES,
+  HURT_LOCK,
+  HP_MAX,
+  type EnemyId,
+} from "../data/enemies";
 import { SPIRITS, type SpiritDef } from "../data/spirits";
 import {
   CAVE_H,
@@ -62,6 +83,7 @@ import {
   type World,
 } from "../data/world";
 import { DAY_LENGTH, type Game } from "./state";
+import { facingPoint, type Boss, type Combat, type Enemy } from "./enemies";
 import { glowRadius, tideRatio, type RootsRun } from "./roots";
 import type { Spirit } from "./spirits";
 import { stageOf, type FX } from "./systems";
@@ -221,6 +243,21 @@ const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
   cache: { oy: 0, base: 16 },
   cache_open: { oy: 0, base: 16 },
 };
+
+/** All five face right in the art, so only a leftward walk needs a mirror. */
+const ENEMY_ART: Record<EnemyId, Sprite> = {
+  wisp: WISP,
+  marsh_husk: MARSH_HUSK,
+  ridge_stalker: RIDGE_STALKER,
+  root_crawler: ROOT_CRAWLER,
+  spore_bloat: SPORE_BLOAT,
+};
+
+/** First frame is the wind-up, last is the blade settling. */
+const SWING_FRAMES: Sprite[] = [SWING_0, SWING_1, SWING_2];
+
+/** Anything the y-sort can place: trees, spirits, chimeras, the alchemist. */
+type SceneItem = { y: number; draw(): void };
 
 export class Renderer {
   private ground: HTMLCanvasElement;
@@ -388,6 +425,13 @@ export class Renderer {
     return mirrored ? flipX(built) : built;
   }
 
+  /** The brief white shape a sickle blow lands with. */
+  enemySprite(e: Enemy): HTMLCanvasElement {
+    const built = buildSprite(`en_${e.id}`, ENEMY_ART[e.id]);
+    const spr = e.dir === "left" ? flipX(built) : built;
+    return e.flash > 0 ? silhouette(spr, "#f2e7ff") : spr;
+  }
+
   playerSprite(g: Game): HTMLCanvasElement {
     const step = Math.floor(g.anim) % 2;
     if (g.dir === "up")
@@ -405,7 +449,127 @@ export class Renderer {
     return side;
   }
 
-  draw(g: Game, fx: FX[], t: number, spirits: Spirit[]): void {
+  /**
+   * Anything with teeth, queued into the same y-sort as the trees,
+   * so a husk can stand in front of a pine and still be hidden by it.
+   */
+  private pushHostiles(
+    items: SceneItem[],
+    c: CanvasRenderingContext2D,
+    combat: Combat,
+    t: number,
+    cam: { x: number; y: number },
+    cull: boolean,
+  ): void {
+    for (const e of combat.enemies) {
+      if (cull && !visible(Math.floor(e.x / TILE), Math.floor(e.y / TILE), cam))
+        continue;
+      const def = ENEMIES[e.id];
+      const spr = this.enemySprite(e);
+      const x = Math.round(e.x);
+      const y =
+        Math.round(e.y) -
+        (def.hover ? 5 + Math.round(Math.sin(t * 2.6 + e.anim) * 2) : 0);
+      items.push({
+        y: y + spr.height - 2,
+        draw: () => {
+          shadow(c, x + spr.width / 2, y + spr.height - 1, 4);
+          c.drawImage(spr, x, y);
+        },
+      });
+    }
+
+    const b = combat.boss;
+    if (!b) return;
+    const x = Math.round(b.x);
+    const y = Math.round(b.y);
+    if (b.burrowed) {
+      // Under the floor: only the scar it drags along the stone.
+      items.push({
+        y: y + 26,
+        draw: () => {
+          c.globalAlpha = 0.45;
+          c.fillStyle = "#120c1e";
+          c.fillRect(x + 2, y + 20, 28, 6);
+          c.fillStyle = "#6b5a9a";
+          c.fillRect(x + 6 + Math.round(Math.sin(t * 5) * 6), y + 22, 4, 2);
+          c.globalAlpha = 1;
+        },
+      });
+      return;
+    }
+    const spr = buildSprite("boss_root_lord", ROOT_LORD);
+    items.push({
+      y: y + spr.height,
+      draw: () => {
+        shadow(c, x + 16, y + spr.height - 2, 13);
+        c.drawImage(b.flash > 0 ? silhouette(spr, "#ffe6c9") : spr, x, y);
+      },
+    });
+  }
+
+  /** Spore shot hangs in the air above the floor, so it never sorts behind a cap. */
+  private drawShots(
+    c: CanvasRenderingContext2D,
+    boss: Boss,
+    t: number,
+  ): void {
+    for (const s of boss.shots) {
+      c.globalAlpha = 0.35;
+      c.fillStyle = "#b48ce0";
+      c.fillRect(Math.round(s.x) - 3, Math.round(s.y) - 3, 6, 6);
+      c.globalAlpha = 1;
+      c.fillStyle = Math.floor(t * 12) % 2 ? "#e6c9ff" : "#8f6fb0";
+      c.fillRect(Math.round(s.x) - 2, Math.round(s.y) - 2, 4, 4);
+    }
+  }
+
+  /** The crescent the sickle leaves in the air, drawn last so it reads over the target. */
+  private drawSwing(g: Game, c: CanvasRenderingContext2D): void {
+    if (g.swing <= 0) return;
+    const frame = g.swing > 0.17 ? 0 : g.swing > 0.08 ? 1 : 2;
+    const built = buildSprite(`swing_${frame}`, SWING_FRAMES[frame]);
+    const spr = g.dir === "left" ? flipX(built) : built;
+    const at = facingPoint(g);
+    c.globalAlpha = Math.min(1, g.swing * 6);
+    c.drawImage(spr, Math.round(at.x - 10), Math.round(at.y - 10));
+    c.globalAlpha = 1;
+  }
+
+  /** The instant a blow lands, the alchemist is the brightest thing on screen. */
+  private hurtTint(g: Game, spr: HTMLCanvasElement): HTMLCanvasElement {
+    return g.hurt > HURT_LOCK - 0.2 ? silhouette(spr, "#ffd9d0") : spr;
+  }
+
+  /** A red rim for the hit itself, and a slow one while the hearts run low. */
+  private drawHurt(g: Game, t: number): void {
+    const fresh = Math.min(1, g.hurt / 0.35);
+    const low =
+      g.hp > 0 && g.hp <= HP_MAX * 0.3 ? 0.25 + 0.15 * Math.sin(t * 3.4) : 0;
+    const k = Math.max(fresh, low);
+    if (k <= 0.01) return;
+    const c = this.vctx;
+    const vg = c.createRadialGradient(
+      VIEW_W / 2,
+      VIEW_H / 2,
+      VIEW_H * 0.3,
+      VIEW_W / 2,
+      VIEW_H / 2,
+      VIEW_H * 0.85,
+    );
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, `rgba(178,34,28,${(0.45 * k).toFixed(3)})`);
+    c.fillStyle = vg;
+    c.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
+
+  draw(
+    g: Game,
+    fx: FX[],
+    t: number,
+    spirits: Spirit[],
+    combat: Combat,
+  ): void {
     const c = this.vctx;
     const w = this.world;
     const cam = this.camera(g);
@@ -467,8 +631,7 @@ export class Renderer {
     }
 
     // Y-sorted tall objects and the player.
-    type Item = { y: number; draw(): void };
-    const items: Item[] = [];
+    const items: SceneItem[] = [];
     for (
       let ty = Math.max(0, Math.floor(cam.y / TILE) - 2);
       ty < Math.min(MAP_H, cam.y / TILE + 15);
@@ -523,11 +686,13 @@ export class Renderer {
       y: py + 20,
       draw: () => {
         shadow(c, px + 8, py + 20, 5);
-        c.drawImage(playerSpr, px, py);
+        c.drawImage(this.hurtTint(g, playerSpr), px, py);
       },
     });
+    this.pushHostiles(items, c, combat, t, cam, true);
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    this.drawSwing(g, c);
 
     for (const p of fx) {
       c.globalAlpha = Math.min(1, p.life * 2.5);
@@ -538,6 +703,7 @@ export class Renderer {
 
     c.restore();
     this.drawLight(g, t);
+    this.drawHurt(g, t);
     this.present();
   }
 
@@ -545,7 +711,14 @@ export class Renderer {
    * The Root Network: its own ground cache, its own light model, no daylight tint.
    * Darkness is a separate mask punched out by the alchemist's glow and every light source.
    */
-  drawCave(g: Game, cave: Cave, run: RootsRun, fx: FX[], t: number): void {
+  drawCave(
+    g: Game,
+    cave: Cave,
+    run: RootsRun,
+    fx: FX[],
+    t: number,
+    combat: Combat,
+  ): void {
     const c = this.vctx;
     const cam = this.caveCamera(g);
     c.clearRect(0, 0, VIEW_W, VIEW_H);
@@ -553,8 +726,7 @@ export class Renderer {
     c.translate(-cam.x + cam.shakeX, -cam.y + cam.shakeY);
     c.drawImage(this.caveGroundCanvas(cave), 0, 0);
 
-    type Item = { y: number; draw(): void };
-    const items: Item[] = [];
+    const items: SceneItem[] = [];
     const x0 = Math.max(0, Math.floor(cam.x / TILE) - 1);
     const x1 = Math.min(CAVE_W, Math.ceil(cam.x / TILE) + 22);
     const y0 = Math.max(0, Math.floor(cam.y / TILE) - 2);
@@ -594,11 +766,14 @@ export class Renderer {
       y: py + 20,
       draw: () => {
         shadow(c, px + 8, py + 20, 5);
-        c.drawImage(playerSpr, px, py);
+        c.drawImage(this.hurtTint(g, playerSpr), px, py);
       },
     });
+    this.pushHostiles(items, c, combat, t, cam, false);
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    if (combat.boss) this.drawShots(c, combat.boss, t);
+    this.drawSwing(g, c);
 
     for (const p of fx) {
       c.globalAlpha = Math.min(1, p.life * 2.5);
@@ -610,6 +785,7 @@ export class Renderer {
     c.restore();
     this.drawCaveDark(g, cave, cam, t);
     this.drawTide(run, t);
+    this.drawHurt(g, t);
     this.present();
   }
 

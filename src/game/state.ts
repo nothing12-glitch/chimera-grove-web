@@ -11,7 +11,12 @@ export type Slot =
   | { kind: "empty" };
 
 export const SLOT_COUNT = 8;
-export const DAY_LENGTH = 45;
+/**
+ * A day is 8:00 → 20:00, twelve game hours. At 720 real seconds that is one
+ * game minute per second: a full day is a twelve-minute sitting, and the clock
+ * you watch moves in minutes rather than blurring past.
+ */
+export const DAY_LENGTH = 720;
 export const CAN_CAPACITY = 4;
 export const MOISTURE_MAX = 3;
 

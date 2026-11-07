@@ -214,7 +214,7 @@ export class Hud {
     const mm = Math.floor((hours - hh) * 60);
     this.clock.textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
     this.coins.textContent = String(g.coins);
-    this.water.textContent = `${g.charges}/${CAN_CAPACITY}`;
+    this.water.textContent = `Лійка ${g.charges}/${CAN_CAPACITY}`;
     const lit = Math.ceil(g.hp / 2);
     this.hearts.forEach((h, i) => h.classList.toggle("on", i < lit));
     this.heartBox.classList.toggle("low", g.hp <= HP_MAX * 0.3);

@@ -41,6 +41,20 @@ export type Enemy = {
 
 export type Shot = { x: number; y: number; vx: number; vy: number; life: number };
 
+/** The fall a felled chimera plays before it is gone for good. */
+export type Death = {
+  id: EnemyId | "boss";
+  x: number;
+  y: number;
+  dir: Dir;
+  /** seconds since the body started going down */
+  t: number;
+  hover: boolean;
+};
+
+/** Seconds a corpse stays on the floor. */
+export const DEATH_TIME = 0.7;
+
 export type Boss = {
   x: number;
   y: number;
@@ -434,6 +448,8 @@ export function hitBoss(boss: Boss, g: Game, ev: Events): boolean {
 export class Combat {
   enemies: Enemy[] = [];
   boss: Boss | null = null;
+  /** Felled bodies still playing out their fall. */
+  deaths: Death[] = [];
   private night = false;
   private layer = -1;
 
@@ -448,16 +464,24 @@ export class Combat {
     if (cave) {
       if (this.layer !== cave.layer) {
         this.layer = cave.layer;
+        this.deaths = [];
         this.enemies = spawnCave(cave, field, g, 4 + cave.layer);
         if (cave.layer === 4 && !g.bossDowned) this.boss = spawnBoss(cave);
       }
     } else {
+      if (this.layer !== -1) this.deaths = [];
       this.layer = -1;
       this.boss = null;
       const dark = isNight(g);
       if (dark && !this.night) this.enemies = spawnSurface(w, g, field, 9);
       if (!dark) this.enemies = [];
       this.night = dark;
+    }
+
+    for (let i = this.deaths.length - 1; i >= 0; i--) {
+      const d = this.deaths[i];
+      d.t += dt;
+      if (d.t >= DEATH_TIME) this.deaths.splice(i, 1);
     }
 
     stepEnemies(
@@ -499,6 +523,14 @@ export class Combat {
 
   private plunder(e: Enemy, g: Game, ev: Events): void {
     const def = ENEMIES[e.id];
+    this.deaths.push({
+      id: e.id,
+      x: e.x,
+      y: e.y,
+      dir: e.dir,
+      t: 0,
+      hover: def.hover,
+    });
     g.coins += def.coins;
     ev.fx(e.x + 8, e.y + 8, "#ffd98a", "spark");
     if (Math.random() < def.drop.chance) {
@@ -511,6 +543,16 @@ export class Combat {
   }
 
   private defeatBoss(g: Game, ev: Events): void {
+    const b = this.boss;
+    if (b)
+      this.deaths.push({
+        id: "boss",
+        x: b.x,
+        y: b.y,
+        dir: "down",
+        t: 0,
+        hover: false,
+      });
     g.bossDowned = true;
     g.coins += BOSS.coins;
     g.seeds.voidcap += 6;
@@ -533,6 +575,7 @@ export class Combat {
     g.py = w.spawn.ty * TILE - 2;
     g.scene = "grove";
     this.enemies = [];
+    this.deaths = [];
     this.boss = null;
     ev.toast(
       `Тіло не тримає. Ти отямився біля хати й загубив ${lost} сонцязі.`,

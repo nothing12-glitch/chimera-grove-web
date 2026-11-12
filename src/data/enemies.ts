@@ -5,8 +5,12 @@ export type EnemyId =
   | "wisp"
   | "marsh_husk"
   | "ridge_stalker"
+  | "bog_orc"
+  | "ridge_reaver"
+  | "bone_chanter"
   | "root_crawler"
-  | "spore_bloat";
+  | "spore_bloat"
+  | "crypt_warden";
 
 export type EnemyDef = {
   id: EnemyId;
@@ -73,6 +77,48 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     layers: [],
     drop: { crop: "glass_fern", chance: 0.25 },
   },
+  bog_orc: {
+    id: "bog_orc",
+    name: "Багняний Орк",
+    hp: 16,
+    speed: 25,
+    damage: 4,
+    aggro: 5,
+    homeRadius: 10,
+    hover: false,
+    coins: 24,
+    biomes: ["marsh"],
+    layers: [],
+    drop: { crop: "ember_root", chance: 0.3 },
+  },
+  ridge_reaver: {
+    id: "ridge_reaver",
+    name: "Хребтовий Рубака",
+    hp: 22,
+    speed: 20,
+    damage: 5,
+    aggro: 5,
+    homeRadius: 9,
+    hover: false,
+    coins: 32,
+    biomes: ["ridge", "ruins"],
+    layers: [],
+    drop: { crop: "glass_fern", chance: 0.3 },
+  },
+  bone_chanter: {
+    id: "bone_chanter",
+    name: "Кістяний Співун",
+    hp: 12,
+    speed: 28,
+    damage: 3,
+    aggro: 6,
+    homeRadius: 9,
+    hover: false,
+    coins: 26,
+    biomes: ["ruins"],
+    layers: [],
+    drop: { crop: "whisper_vine", chance: 0.2 },
+  },
   root_crawler: {
     id: "root_crawler",
     name: "Кореневий Повзун",
@@ -101,14 +147,32 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     layers: [2, 3, 4],
     drop: { crop: "voidcap", chance: 0.6 },
   },
+  crypt_warden: {
+    id: "crypt_warden",
+    name: "Склепний Страж",
+    hp: 20,
+    speed: 20,
+    damage: 5,
+    aggro: 5,
+    homeRadius: 8,
+    hover: false,
+    coins: 34,
+    biomes: [],
+    layers: [3, 4],
+    drop: { crop: "voidcap", chance: 0.4 },
+  },
 };
 
 export const ENEMY_ORDER: EnemyId[] = [
   "wisp",
   "marsh_husk",
   "ridge_stalker",
+  "bog_orc",
+  "ridge_reaver",
+  "bone_chanter",
   "root_crawler",
   "spore_bloat",
+  "crypt_warden",
 ];
 
 export const SICKLE_DAMAGE = 5;

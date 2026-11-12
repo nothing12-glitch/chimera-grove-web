@@ -1339,6 +1339,65 @@ export const SPORE_BLOAT: Sprite = rects(14, 16, [
   [11, 5, 1, 3, "#e6c9ff"],
 ]);
 
+/** A mud-caked orc that wades the marsh after dark, club in fist. */
+export const BOG_ORC: Sprite = rects(14, 16, [
+  [3, 4, 8, 7, "#5b7d3a"],
+  [4, 5, 5, 3, "#7a9c4a"],
+  [4, 1, 7, 4, "#6f9142"],
+  [4, 4, 1, 2, "#e8e0c0"],
+  [10, 4, 1, 2, "#e8e0c0"],
+  [5, 3, 1, 1, "#e0503a"],
+  [9, 3, 1, 1, "#e0503a"],
+  [12, 6, 2, 8, "#6b4f2e"],
+  [12, 4, 2, 2, "#8a6f42"],
+  [4, 11, 2, 3, "#3a4a26"],
+  [9, 11, 2, 3, "#3a4a26"],
+]);
+
+/** The ridge's enforcer: broad shoulders, an axe, and no patience. */
+export const RIDGE_REAVER: Sprite = rects(16, 16, [
+  [3, 4, 10, 8, "#4a5a4a"],
+  [4, 5, 8, 3, "#5f7260"],
+  [5, 1, 6, 4, "#566650"],
+  [5, 4, 1, 1, "#ffd98a"],
+  [10, 4, 1, 1, "#ffd98a"],
+  [1, 4, 2, 3, "#8a7a4a"],
+  [13, 4, 2, 3, "#8a7a4a"],
+  [14, 2, 2, 2, "#a8b0ba"],
+  [14, 4, 1, 7, "#6b4f2e"],
+  [4, 12, 3, 3, "#2f3a2f"],
+  [9, 12, 3, 2, "#2f3a2f"],
+]);
+
+/** A skeleton in a mourner's robe, humming a tune that spoils the air. */
+export const BONE_CHANTER: Sprite = rects(12, 16, [
+  [4, 1, 4, 4, "#d8cdb4"],
+  [5, 2, 1, 2, "#7a4fd0"],
+  [8, 2, 1, 2, "#7a4fd0"],
+  [3, 5, 6, 8, "#5a3f7a"],
+  [4, 11, 4, 2, "#8a6fb0"],
+  [9, 3, 1, 11, "#8a6f42"],
+  [8, 0, 3, 3, "#b48ce0"],
+  [2, 12, 2, 2, "#3a2a4a"],
+  [8, 12, 2, 2, "#3a2a4a"],
+]);
+
+/** Armoured dead of the deep tunnels: shield up, sword down. */
+export const CRYPT_WARDEN: Sprite = rects(16, 16, [
+  [4, 1, 8, 3, "#88909a"],
+  [5, 4, 6, 3, "#d8cdb4"],
+  [6, 5, 1, 1, "#e0503a"],
+  [9, 5, 1, 1, "#e0503a"],
+  [4, 7, 8, 5, "#6a7280"],
+  [5, 8, 6, 1, "#a8b0ba"],
+  [1, 5, 4, 8, "#8a6f42"],
+  [2, 6, 2, 6, "#a88a5a"],
+  [13, 3, 2, 9, "#a8b0ba"],
+  [12, 11, 4, 1, "#6b4f2e"],
+  [5, 12, 2, 3, "#3a3d44"],
+  [9, 12, 2, 3, "#3a3d44"],
+]);
+
 /** The crown that rules the Root Network: moss, old wood and two red coals. */
 export const ROOT_LORD: Sprite = rects(32, 30, [
   [8, 10, 16, 14, "#4a3a26"],

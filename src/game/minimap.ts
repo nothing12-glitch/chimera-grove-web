@@ -39,6 +39,7 @@ const OPEN = "#7fc4d8";
 const MOUTH = "#b487e8";
 const HOARD = "#ffd98a";
 const SPIRIT_DOT = "#8fd6c0";
+const HOUSE = "#d79a5c";
 const FOE = "#e0503a";
 const SELF = "#ffe9a8";
 const FRAME = "#eaf4ff";
@@ -52,6 +53,7 @@ export const BIOME_LEGEND: LegendEntry[] = BIOME_ORDER.map((b) => ({
 
 export const MARK_LEGEND: LegendEntry[] = [
   { color: SELF, label: "ви" },
+  { color: HOUSE, label: "хата" },
   { color: SOIL, label: "грядка" },
   { color: HOARD, label: "кореневий вузлик" },
   { color: MOUTH, label: "провал Мережі" },
@@ -128,6 +130,7 @@ export class Minimap {
       c.fillStyle = color;
       c.fillRect(tx - here.tx + radius, ty - here.ty + radius, 1, 1);
     };
+    for (const c of this.world.cottages) mark(c.tx, c.ty, HOUSE);
     for (const [i] of this.world.plots)
       mark(i % MAP_W, Math.floor(i / MAP_W), SOIL);
     for (const i of this.world.caches)
@@ -158,6 +161,7 @@ export class Minimap {
       c.fillStyle = color;
       c.fillRect(x - half, y - half, size, size);
     };
+    for (const c of this.world.cottages) stamp(c.tx, c.ty, HOUSE, 3);
     for (const [i] of this.world.plots)
       stamp(i % MAP_W, Math.floor(i / MAP_W), SOIL, 1);
     for (const i of this.world.caches)

@@ -7,11 +7,14 @@ import {
 } from "../core/sprites";
 import {
   ALCHEMY_TABLE,
+  BOG_ORC,
+  BONE_CHANTER,
   BUSH,
   CACHE,
   CACHE_OPEN,
   CAVE_CAP,
   CAVE_DEBRIS,
+  CRYPT_WARDEN,
   CRYSTAL,
   DEAD_TREE,
   DEEP_WELL,
@@ -29,6 +32,7 @@ import {
   PLAYER_SIDE,
   PLAYER_UP,
   REED,
+  RIDGE_REAVER,
   RIDGE_STALKER,
   ROCK,
   ROCKFALL,
@@ -63,8 +67,20 @@ import {
   type EnemyId,
 } from "../data/enemies";
 import { SPIRITS, type SpiritDef } from "../data/spirits";
+import { VILLAGERS } from "../data/villagers";
 import { MAT, surfaceFor } from "../data/tiles";
-import { packFrame, tileSome } from "../core/sheets";
+import { packFrame, packRect, tileSome } from "../core/sheets";
+import {
+  ALCHEMY_CLIP,
+  BANNERS,
+  BONFIRE_CLIP,
+  BRAZIERS,
+  COTTAGE,
+  FIRE_CLIP,
+  PROP_ART,
+  SCYTHE_ART,
+  type PropArt,
+} from "../data/packprops";
 import {
   BOSS_CREW,
   BOSS_SCALE,
@@ -76,6 +92,7 @@ import {
 import {
   CAVE_H,
   CAVE_W,
+  MAX_LAYER,
   caveIdx,
   inCave,
   type Cave,
@@ -93,9 +110,10 @@ import {
   type World,
 } from "../data/world";
 import { DAY_LENGTH, type Game } from "./state";
-import { facingPoint, type Boss, type Combat, type Enemy } from "./enemies";
+import { DEATH_TIME, facingPoint, type Boss, type Combat, type Enemy } from "./enemies";
 import { glowRadius, tideRatio, type RootsRun } from "./roots";
 import type { Spirit } from "./spirits";
+import type { Villager } from "./villagers";
 import { stageOf, type FX } from "./systems";
 
 export const VIEW_W = 320;
@@ -254,13 +272,17 @@ const OBJ_ANCHOR: Record<string, { oy: number; base: number }> = {
   cache_open: { oy: 0, base: 16 },
 };
 
-/** All five face right in the art, so only a leftward walk needs a mirror. */
+/** All nine face right in the art, so only a leftward walk needs a mirror. */
 const ENEMY_ART: Record<EnemyId, Sprite> = {
   wisp: WISP,
   marsh_husk: MARSH_HUSK,
   ridge_stalker: RIDGE_STALKER,
+  bog_orc: BOG_ORC,
+  ridge_reaver: RIDGE_REAVER,
+  bone_chanter: BONE_CHANTER,
   root_crawler: ROOT_CRAWLER,
   spore_bloat: SPORE_BLOAT,
+  crypt_warden: CRYPT_WARDEN,
 };
 
 /** First frame is the wind-up, last is the blade settling. */
@@ -480,6 +502,26 @@ export class Renderer {
    * frames when she walks, a flinch when the blow lands. Until a strip has
    * arrived the old hand-drawn body stands in for it.
    */
+  /** A villager out of the hamlet: side-view sheets, breathing or walking. */
+  villagerSprite(v: Villager, t: number): HTMLCanvasElement {
+    const def = VILLAGERS[v.id];
+    const clip = v.moving ? def.walk : def.idle;
+    const spr = packFrame(
+      clip,
+      Math.floor(t * (v.moving ? FPS.crewRun : FPS.crewIdle)),
+    );
+    if (!spr) return buildSprite("p_down", PLAYER_DOWN);
+    const mirror = (def.faces === "left") !== (v.face === "left");
+    return mirror ? flipX(spr) : spr;
+  }
+
+  /** A stable variant per tile, so a stand of pines is not one copied tree. */
+  private propVariant(o: string, tx: number, ty: number): PropArt | null {
+    const list = PROP_ART[o as keyof typeof PROP_ART];
+    if (!list?.length) return null;
+    return list[Math.floor(hash(tx, ty) * list.length) % list.length];
+  }
+
   playerSprite(g: Game, t: number): HTMLCanvasElement {
     const face: Face = g.dir === "left" || g.dir === "right" ? "side" : g.dir;
     const set = PLAYER_CLIPS[face];
@@ -526,6 +568,115 @@ export class Renderer {
     return { x: Math.round(cx - spr.width / 2), y: Math.round(feet - spr.height) };
   }
 
+  /**
+   * Cottages and the village fire. A house is a wall, a gable roof, a door and
+   * a window stacked by pixel rectangle; its base is the two rows of wall the
+   * player cannot walk through, so it sorts like any other tall prop.
+   */
+  private pushVillage(
+    items: SceneItem[],
+    c: CanvasRenderingContext2D,
+    t: number,
+    cam: { x: number; y: number },
+  ): void {
+    for (const f of this.world.bonfires) {
+      const x = f.tx * TILE;
+      const y = f.ty * TILE;
+      if (
+        x > cam.x + VIEW_W + 64 ||
+        x + 32 < cam.x - 64 ||
+        y > cam.y + VIEW_H + 96 ||
+        y + 32 < cam.y - 96
+      )
+        continue;
+      const ring = packFrame(BONFIRE_CLIP, Math.floor(t * 6));
+      const flame = packFrame(FIRE_CLIP, Math.floor(t * 8 + 1));
+      const cx = x + 16;
+      const feet = y + 32;
+      items.push({
+        y: feet,
+        draw: () => {
+          shadow(c, cx, feet - 3, 11);
+          if (ring) c.drawImage(ring, cx - 16, feet - 32);
+          else {
+            c.fillStyle = "#3a2a20";
+            c.fillRect(cx - 14, feet - 12, 28, 10);
+          }
+          if (flame) c.drawImage(flame, cx - 16, feet - 58);
+          else {
+            c.fillStyle = "#ff9a3c";
+            c.fillRect(cx - 4, feet - 20, 8, 12);
+          }
+        },
+      });
+    }
+
+    for (const [n, cot] of this.world.cottages.entries()) {
+      const cx = cot.tx * TILE + 8;
+      const base = cot.ty * TILE + TILE;
+      const left = Math.round(cx - 48);
+      const wallTop = base - 56;
+      const roofTop = wallTop - 100;
+      if (
+        left > cam.x + VIEW_W + 8 ||
+        left + 96 < cam.x - 8 ||
+        base > cam.y + VIEW_H + 56 ||
+        roofTop > cam.y + VIEW_H + 8
+      )
+        continue;
+      const wall = packRect(COTTAGE.wall.src, COTTAGE.wall.rect);
+      const roof = packRect(COTTAGE.roof.src, COTTAGE.roof.rect);
+      const door = packRect(COTTAGE.door.src, COTTAGE.door.rect);
+      const win = packRect(COTTAGE.window.src, COTTAGE.window.rect);
+      const flagArt = BANNERS[n % BANNERS.length];
+      const flag = packRect(flagArt.src, flagArt.rect);
+      items.push({
+        y: base,
+        draw: () => {
+          shadow(c, cx, base - 2, 26);
+          if (!wall || !roof) {
+            c.fillStyle = "#3a2718";
+            c.fillRect(left, wallTop, 96, 56);
+            c.fillStyle = "#5b3a22";
+            c.beginPath();
+            c.moveTo(cx, roofTop);
+            c.lineTo(left - 6, wallTop);
+            c.lineTo(left + 102, wallTop);
+            c.closePath();
+            c.fill();
+            return;
+          }
+          // The gable gap is sky in the roof sheet; plank it in from behind.
+          c.fillStyle = "#3a2416";
+          c.beginPath();
+          c.moveTo(cx, roofTop + 44);
+          c.lineTo(left, wallTop);
+          c.lineTo(left + 96, wallTop);
+          c.closePath();
+          c.fill();
+          c.fillStyle = "#4a2f1c";
+          const apex = roofTop + 44;
+          for (let y = apex + 6; y < wallTop; y += 5) {
+            const half = Math.round(((y - apex) / (wallTop - apex)) * 48);
+            c.fillRect(cx - half, y, half * 2, 1);
+          }
+          c.drawImage(wall, left, wallTop);
+          c.drawImage(roof, left, roofTop);
+          if (door) c.drawImage(door, cx - 16, wallTop);
+          if (win) c.drawImage(win, cx - 40, wallTop + 12);
+          if (flag)
+            c.drawImage(
+              flag,
+              cx + 26,
+              wallTop + 8,
+              flag.width * 2,
+              flag.height * 2,
+            );
+        },
+      });
+    }
+  }
+
   /** The alchemist in the y-sort, whether she comes from the pack or from art.ts. */
   private pushPlayer(
     items: SceneItem[],
@@ -542,8 +693,75 @@ export class Renderer {
       draw: () => {
         shadow(c, cx, feet, 5);
         c.drawImage(spr, at.x, at.y);
+        this.drawWeapon(c, g, t, cx, feet);
       },
     });
+  }
+
+  /** The scythe stays in her hand, so the weapon reads even between swings. */
+  private drawWeapon(
+    c: CanvasRenderingContext2D,
+    g: Game,
+    t: number,
+    cx: number,
+    feet: number,
+  ): void {
+    const scythe = packRect(SCYTHE_ART.src, SCYTHE_ART.rect);
+    if (!scythe) return;
+    const bob = g.moving && Math.floor(t * 9) % 2 ? 1 : 0;
+    const left = g.dir === "left" || g.dir === "up";
+    const x = left ? cx - scythe.width - 5 : cx + 5;
+    c.drawImage(left ? flipX(scythe) : scythe, x, feet - scythe.height + 1 - bob);
+  }
+
+  /** The hamlet's four walkers, queued into the same y-sort as everyone else. */
+  private pushVillagers(
+    items: SceneItem[],
+    c: CanvasRenderingContext2D,
+    t: number,
+    cam: { x: number; y: number },
+    g: Game,
+    list: Villager[],
+  ): void {
+    for (const v of list) {
+      if (!visible(Math.floor(v.x / TILE), Math.floor(v.y / TILE), cam)) continue;
+      const spr = this.villagerSprite(v, t);
+      const x = Math.round(v.x);
+      const y = Math.round(v.y);
+      const near =
+        Math.hypot(v.x + 16 - (g.px + 8), v.y + 22 - (g.py + 16)) < 52;
+      items.push({
+        y: y + 31,
+        draw: () => {
+          shadow(c, x + 16, y + 30, 5);
+          c.drawImage(spr, x, y);
+          if (near || v.says > 0) this.chatMark(c, v, x, y);
+        },
+      });
+    }
+  }
+
+  /** Three dots over a villager's head: "there is something to hear here". */
+  private chatMark(
+    c: CanvasRenderingContext2D,
+    v: Villager,
+    x: number,
+    y: number,
+  ): void {
+    const bx = x + 9;
+    const by = y + 1;
+    c.globalAlpha = 0.82;
+    c.fillStyle = "#0d1519";
+    c.fillRect(bx, by, 14, 9);
+    c.globalAlpha = 1;
+    c.fillStyle = v.says > 0 ? "#ffe6a8" : "#8fb6c8";
+    c.fillRect(bx, by, 14, 1);
+    c.fillRect(bx, by + 8, 14, 1);
+    c.fillRect(bx, by, 1, 9);
+    c.fillRect(bx + 13, by, 1, 9);
+    c.fillRect(bx + 6, by + 9, 2, 1);
+    for (let i = 0; i < 3; i++)
+      c.fillRect(bx + 3 + i * 4, by + 4, 2, 2);
   }
 
   /**
@@ -577,6 +795,41 @@ export class Renderer {
         draw: () => {
           shadow(c, cx, feet - 1, 4);
           c.drawImage(spr, at.x, at.y);
+        },
+      });
+    }
+
+    for (const d of combat.deaths) {
+      if (cull && !visible(Math.floor(d.x / TILE), Math.floor(d.y / TILE), cam))
+        continue;
+      const boss = d.id === "boss";
+      const clip = d.id === "boss" ? BOSS_CREW.death : ENEMY_CREWS[d.id].death;
+      const step = Math.min(
+        clip.frames - 1,
+        Math.floor((d.t / DEATH_TIME) * clip.frames),
+      );
+      const cut = packFrame(clip, step);
+      if (!cut) continue;
+      const box =
+        d.id === "boss"
+          ? buildSprite("boss_root_lord", ROOT_LORD)
+          : buildSprite(`en_${d.id}`, ENEMY_ART[d.id]);
+      const scale = boss ? BOSS_SCALE : 1;
+      const w = cut.width * scale;
+      const h = cut.height * scale;
+      const cx = Math.round(d.x) + box.width / 2;
+      const feet = Math.round(d.y) + box.height - (d.hover ? 5 : 0);
+      const sx = Math.round(cx - w / 2);
+      const sy = Math.round(feet - h);
+      const spr = d.dir === "left" ? flipX(cut) : cut;
+      const fade =
+        d.t > DEATH_TIME - 0.18 ? Math.max(0, (DEATH_TIME - d.t) / 0.18) : 1;
+      items.push({
+        y: feet - 2,
+        draw: () => {
+          c.globalAlpha = fade;
+          c.drawImage(spr, sx, sy, w, h);
+          c.globalAlpha = 1;
         },
       });
     }
@@ -686,6 +939,7 @@ export class Renderer {
     fx: FX[],
     t: number,
     spirits: Spirit[],
+    villagers: Villager[],
     combat: Combat,
   ): void {
     const c = this.vctx;
@@ -765,9 +1019,63 @@ export class Renderer {
       ) {
         const o = objectAt(w, tx, ty);
         if (!o) continue;
-        const spr = spriteFor(o);
+        // The brewing bench is the one prop with a life of its own: glass and
+        // bubbles, thirty-three frames of them.
+        if (o === "table") {
+          const bench = packFrame(ALCHEMY_CLIP, Math.floor(t * 6));
+          if (bench) {
+            const cx = tx * TILE + 8;
+            const feet = ty * TILE + TILE + 2;
+            items.push({
+              y: feet,
+              draw: () => {
+                shadow(c, cx, feet - 3, 11);
+                c.drawImage(
+                  bench,
+                  Math.round(cx - bench.width / 2),
+                  feet - bench.height,
+                );
+              },
+            });
+            continue;
+          }
+        }
+        // The pack's own trees, boulders and reeds; the flat art stands in only
+        // while a sheet is still in flight or for props the pack does not have.
+        const prop = this.propVariant(o, tx, ty);
+        const spr = prop ? packRect(prop.src, prop.rect) : null;
+        if (spr && prop) {
+          const size = prop.scale ?? 1;
+          const wpx = spr.width * size;
+          const hpx = spr.height * size;
+          // Sub-pixel-grid jitter so the forest wall doesn't read as a perfect lattice.
+          const cx =
+            tx * TILE +
+            8 +
+            (prop.dx ?? 0) +
+            Math.round((hash(tx, ty) - 0.5) * 4);
+          const feet =
+            ty * TILE +
+            TILE +
+            (prop.dy ?? 0) +
+            Math.round((hash(tx + 31, ty + 17) - 0.5) * 2);
+          items.push({
+            y: feet,
+            draw: () => {
+              shadow(c, cx, feet - 2, prop.shadow ?? (o === "bush" ? 6 : 5));
+              c.drawImage(
+                spr,
+                Math.round(cx - wpx / 2),
+                Math.round(feet - hpx),
+                Math.round(wpx),
+                Math.round(hpx),
+              );
+            },
+          });
+          continue;
+        }
+        const fallback = spriteFor(o);
         const anchor = OBJ_ANCHOR[o] ?? { oy: 0, base: 16 };
-        // Sub-pixel-grid jitter so the forest wall doesn't read as a perfect lattice.
         const x = tx * TILE + Math.round((hash(tx, ty) - 0.5) * 5);
         const y =
           ty * TILE +
@@ -776,8 +1084,8 @@ export class Renderer {
         items.push({
           y: ty * TILE + anchor.base,
           draw: () => {
-            shadow(c, x + 8, y + spr.height - 2, o === "bush" ? 6 : 5);
-            c.drawImage(spr, x, y);
+            shadow(c, x + 8, y + fallback.height - 2, o === "bush" ? 6 : 5);
+            c.drawImage(fallback, x, y);
           },
         });
       }
@@ -800,6 +1108,8 @@ export class Renderer {
         },
       });
     }
+    this.pushVillage(items, c, t, cam);
+    this.pushVillagers(items, c, t, cam, g, villagers);
     this.pushPlayer(items, c, g, t);
     this.pushHostiles(items, c, combat, t, cam, true);
     items.sort((a, b) => a.y - b.y);
@@ -871,6 +1181,7 @@ export class Renderer {
       }
     }
 
+    this.pushBossArena(items, c, cave, t, cam);
     this.pushPlayer(items, c, g, t);
     this.pushHostiles(items, c, combat, t, cam, false);
     items.sort((a, b) => a.y - b.y);
@@ -890,6 +1201,97 @@ export class Renderer {
     this.drawTide(run, t);
     this.drawHurt(g, t);
     this.present();
+  }
+
+  /** Floor tiles around the last chamber's door where a brazier can stand. */
+  private arenaFires(cave: Cave): { tx: number; ty: number }[] {
+    if (cave.layer !== MAX_LAYER) return [];
+    const spots: { tx: number; ty: number }[] = [];
+    const at = cave.entry;
+    for (const [dx, dy] of [
+      [-3, 0],
+      [3, 0],
+      [0, 2],
+      [-2, 3],
+      [2, 3],
+    ] as const) {
+      const tx = at.tx + dx;
+      const ty = at.ty + dy;
+      if (!inCave(tx, ty)) continue;
+      const i = caveIdx(tx, ty);
+      if (cave.tiles[i] === 0 || cave.prop[i]) continue;
+      spots.push({ tx, ty });
+      if (spots.length === 3) break;
+    }
+    return spots;
+  }
+
+  /** Braziers and banners turn the last chamber into a throne room. */
+  private pushBossArena(
+    items: SceneItem[],
+    c: CanvasRenderingContext2D,
+    cave: Cave,
+    t: number,
+    cam: { x: number; y: number },
+  ): void {
+    const fires = this.arenaFires(cave);
+    for (const [n, { tx, ty }] of fires.entries()) {
+      const x = tx * TILE + 8;
+      const base = ty * TILE + TILE;
+      const art = BRAZIERS[n % BRAZIERS.length];
+      const spr = packRect(art.src, art.rect);
+      if (!spr) continue;
+      const w = spr.width * 2;
+      const h = spr.height * 2;
+      if (
+        x < cam.x - 64 ||
+        x > cam.x + VIEW_W + 64 ||
+        base < cam.y - 96 ||
+        base > cam.y + VIEW_H + 64
+      )
+        continue;
+      items.push({
+        y: base,
+        draw: () => {
+          shadow(c, x, base - 2, 6);
+          c.globalAlpha = 0.22;
+          c.fillStyle = "#ff8a2a";
+          c.beginPath();
+          c.arc(x, base - h + 6, 13, 0, Math.PI * 2);
+          c.fill();
+          c.globalAlpha = 1;
+          c.drawImage(spr, Math.round(x - w / 2), Math.round(base - h), w, h);
+          const f = 1 + Math.sin(t * 7 + n * 1.7) * 0.3;
+          c.fillStyle = n % 2 ? "#ffb54a" : "#ffd98a";
+          c.fillRect(Math.round(x) - 1, Math.round(base - h) + Math.round(4 - f), 3, Math.round(4 + f));
+        },
+      });
+
+      // A banner hangs from the first stretch of rock above each fire.
+      let wall = -1;
+      for (let wy = ty - 1; wy >= ty - 6 && inCave(tx, wy); wy--)
+        if (cave.tiles[caveIdx(tx, wy)] === 0) {
+          wall = wy;
+          break;
+        }
+      if (wall < 0) continue;
+      const flagArt = BANNERS[n % BANNERS.length];
+      const flag = packRect(flagArt.src, flagArt.rect);
+      if (!flag) continue;
+      const rail = wall * TILE + TILE - 4;
+      items.push({
+        y: rail,
+        draw: () => {
+          c.drawImage(
+            flag,
+            Math.round(x - flag.width),
+            Math.round(rail - flag.height * 2 - 4),
+            flag.width * 2,
+            flag.height * 2,
+          );
+        },
+      });
+    }
   }
 
   private caveGroundCanvas(cave: Cave): HTMLCanvasElement {
@@ -1038,6 +1440,14 @@ export class Renderer {
     const lamp = g.effects.light > 0 ? 1.7 : 1;
     const body = glowRadius(cave.layer) * lamp * (1 + Math.sin(t * 6.5) * 0.03);
     punch(d, g.px + 8 - cam.x, g.py + 12 - cam.y, body);
+    const fires = this.arenaFires(cave);
+    for (const { tx, ty } of fires)
+      punch(
+        d,
+        tx * TILE + 8 - cam.x,
+        ty * TILE + 8 - cam.y,
+        2.6 * TILE * lamp * (1 + Math.sin(t * 3 + tx) * 0.05),
+      );
     for (const [i, radius] of cave.lights) {
       if (radius <= 0) continue;
       const lx = (i % CAVE_W) * TILE + 8 - cam.x;
@@ -1063,6 +1473,8 @@ export class Renderer {
         continue;
       glow(c, lx, ly, radius * TILE * 0.6, "#8f6fd6", 0.12);
     }
+    for (const { tx, ty } of fires)
+      glow(c, tx * TILE + 8 - cam.x, ty * TILE + 8 - cam.y, 40, "#ff9a3a", 0.16);
     c.globalCompositeOperation = "source-over";
     c.globalAlpha = 1;
   }
@@ -1150,6 +1562,28 @@ export class Renderer {
     vg.addColorStop(1, "rgba(4,7,10,0.42)");
     c.fillStyle = vg;
     c.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // The village fire answers the dark: a warm pool that never quite sits still.
+    const night = p > 0.72 ? (p - 0.72) / 0.28 : p < 0.12 ? 1 - p / 0.12 : 0;
+    const warm = Math.max(night, 0.16);
+    const cam = this.camera(g);
+    c.globalCompositeOperation = "lighter";
+    for (const f of this.world.bonfires) {
+      const x = f.tx * TILE + 16 - cam.x;
+      const y = f.ty * TILE + 18 - cam.y;
+      if (x < -60 || y < -60 || x > VIEW_W + 60 || y > VIEW_H + 60) continue;
+      const flicker = 0.85 + 0.15 * Math.sin(t * 9 + f.tx * 1.7);
+      const r = 46 * flicker;
+      const fire = c.createRadialGradient(x, y, 2, x, y, r);
+      fire.addColorStop(0, `rgba(255,186,96,${(0.3 * warm).toFixed(3)})`);
+      fire.addColorStop(0.5, `rgba(255,122,44,${(0.12 * warm).toFixed(3)})`);
+      fire.addColorStop(1, "rgba(255,90,20,0)");
+      c.fillStyle = fire;
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalCompositeOperation = "source-over";
   }
 
   private camera(g: Game): {

@@ -35,6 +35,8 @@ import {
   targetInReach,
   type Combat,
 } from "./enemies";
+import { talkVillager, villagerInReach, type Villager } from "./villagers";
+import { VILLAGERS } from "../data/villagers";
 
 export type FX = {
   x: number;
@@ -58,6 +60,7 @@ export type Events = {
 /** Everything a rule needs beyond the game and the grove: spirits, the active dive and whatever has teeth. */
 export type Ctx = {
   spirits: Spirit[];
+  villagers: Villager[];
   run: RootsRun;
   cave: Cave | null;
   combat: Combat;
@@ -254,6 +257,9 @@ export function currentHint(g: Game, w: World, ctx: Ctx): Hint | null {
         : `Пригостити: ${def.name} хоче «${CROPS[reach.want].name}»`,
     };
   }
+  const villager = villagerInReach(g, ctx.villagers);
+  if (villager)
+    return { key: "E", label: `Поговорити: ${VILLAGERS[villager.id].name}` };
   const { tx, ty } = facingTile(g);
   const plot = w.plots.get(idx(tx, ty));
   if (plot?.crop && isMature(plot))
@@ -365,6 +371,11 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
   if (reach) {
     feedSpirit(reach, g, ev);
     commit(g, w, ctx);
+    return;
+  }
+  const villager = villagerInReach(g, ctx.villagers);
+  if (villager) {
+    talkVillager(villager, g, ev);
     return;
   }
   const { tx, ty } = facingTile(g);

@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { readPng } from "./png.mjs";
 import {
   BOSS_CREW,
+  DEATH_CLIPS,
   ENEMY_CREWS,
   PACK_CLIPS,
   PLAYER_CLIPS,
@@ -58,23 +59,24 @@ for (const clip of PACK_CLIPS) {
     continue;
   }
   const png = readPng(path);
+  const cellH = clip.cellH ?? clip.cell;
   const cols = Math.floor(png.w / clip.cell);
-  const rows = Math.floor(png.h / clip.cell);
-  if (png.w % clip.cell || png.h % clip.cell)
-    fail(`${clip.src}: ${png.w}x${png.h} is not a grid of ${clip.cell}`);
+  const rows = Math.floor(png.h / cellH);
+  if (png.w % clip.cell || png.h % cellH)
+    fail(`${clip.src}: ${png.w}x${png.h} is not a grid of ${clip.cell}x${cellH}`);
   if (clip.frames < 2) fail(`${clip.src}: a strip needs more than one frame`);
   if (clip.frames > cols * rows)
     fail(`${clip.src}: asks ${clip.frames} frames, sheet has ${cols * rows}`);
-  const [bx, by, bw, bh] = clip.box ?? [0, 0, clip.cell, clip.cell];
-  if (bx + bw > clip.cell || by + bh > clip.cell)
-    fail(`${clip.src}: box ${bx},${by},${bw}x${bh} escapes the ${clip.cell} cell`);
+  const [bx, by, bw, bh] = clip.box ?? [0, 0, clip.cell, cellH];
+  if (bx + bw > clip.cell || by + bh > cellH)
+    fail(`${clip.src}: box ${bx},${by},${bw}x${bh} escapes the ${clip.cell}x${cellH} cell`);
 
   for (let f = 0; f < clip.frames; f++) {
     sprites++;
     const cx = (f % cols) * clip.cell;
-    const cy = Math.floor(f / cols) * clip.cell;
+    const cy = Math.floor(f / cols) * cellH;
     // everything the artist painted in this cell, wherever it sits
-    const [fx0, fy0, fx1, fy1, painted] = content(png, cx, cy, clip.cell, clip.cell);
+    const [fx0, fy0, fx1, fy1, painted] = content(png, cx, cy, clip.cell, cellH);
     if (!painted) {
       fail(`${clip.src}: frame ${f} is empty`);
       continue;
@@ -101,17 +103,55 @@ for (const clip of PACK_CLIPS) {
   }
 }
 
+/**
+ * Death strips are framed per body by the artist — some lie down, some grow —
+ * so they only have to exist, tile evenly, and never present an empty frame.
+ */
+let falls = 0;
+for (const clip of DEATH_CLIPS) {
+  const path = join(PACK, clip.src);
+  if (!existsSync(path)) {
+    fail(`${clip.src}: the death strip is not shipped in ${PACK}`);
+    continue;
+  }
+  const png = readPng(path);
+  const cellH = clip.cellH ?? clip.cell;
+  const cols = Math.floor(png.w / clip.cell);
+  const rows = Math.floor(png.h / cellH);
+  if (png.w % clip.cell || png.h % cellH)
+    fail(`${clip.src}: ${png.w}x${png.h} is not a grid of ${clip.cell}x${cellH}`);
+  if (clip.frames < 2) fail(`${clip.src}: a fall needs more than one frame`);
+  if (clip.frames > cols * rows)
+    fail(`${clip.src}: asks ${clip.frames} frames, sheet has ${cols * rows}`);
+  for (let f = 0; f < clip.frames; f++) {
+    const [,,, , painted] = content(
+      png,
+      (f % cols) * clip.cell,
+      Math.floor(f / cols) * cellH,
+      clip.cell,
+      cellH,
+    );
+    if (!painted) fail(`${clip.src}: death frame ${f} is empty`);
+    falls++;
+  }
+}
+
 /** The registry must actually cover the casts the game draws. */
 for (const [face, set] of Object.entries(PLAYER_CLIPS))
   for (const [anim, clip] of Object.entries(set))
     if (!clip.src.includes(`_${face[0].toUpperCase() + face.slice(1)}.png`))
       fail(`player ${face}.${anim} points at ${clip.src}`);
 const crews = Object.keys(ENEMY_CREWS).length;
-if (crews !== 5) fail(`only ${crews} chimeras have a crew`);
+if (crews !== 9) fail(`only ${crews} chimeras have a crew`);
+for (const [id, c] of Object.entries(ENEMY_CREWS))
+  if (c.death.src !== c.idle.src.replace(/\/idle\/Idle\.png$/, "/death/Death.png"))
+    fail(`${id}: the fall does not belong to the same crew as the walk`);
 if (!BOSS_CREW.idle.src.startsWith("entities/")) fail("the boss has no sheet");
+if (!BOSS_CREW.death.src.endsWith("/death/Death.png"))
+  fail("the boss has no fall of its own");
 
 console.log(
-  `${PACK_CLIPS.length} strips, ${sprites} frames, ${
+  `${PACK_CLIPS.length} strips, ${sprites} frames, ${falls} death frames, ${
     Object.keys(ENEMY_CREWS).length
   } crews + boss + player: ` + (bad ? `${bad} problem(s)` : "all animated"),
 );

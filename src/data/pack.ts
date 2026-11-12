@@ -1,5 +1,6 @@
 import type { PackClip } from "../core/sheets";
 import type { EnemyId } from "./enemies";
+import { VILLAGER_CLIPS } from "./villagers";
 
 /**
  * The moving parts of the grove come out of the Pixel Crawler pack, which
@@ -54,15 +55,20 @@ export const PLAYER_CLIPS: Record<Face, PlayerSet> = {
   },
 };
 
-/** A crew is one species of the pack: four breathing frames, six moving ones. */
-export type Crew = { idle: PackClip; run: PackClip };
+/** A crew is one species of the pack: four breathing frames, six moving ones,
+ *  and the fall it plays when the sickle is done with it. */
+export type Crew = { idle: PackClip; run: PackClip; death: PackClip };
 
-function crew(root: string): Crew {
+/** Death strips are framed by the artist per body, so each one names its own grid. */
+type DeathGrid = { cell: number; cellH?: number; frames: number };
+
+function crew(root: string, death: DeathGrid): Crew {
   // The pack keeps a mob's boots on the bottom edge of its cell and its body
   // in the middle, in both strips, so a whole cell is already an anchored frame.
   return {
     idle: { src: `${root}/idle/Idle.png`, cell: 32, frames: 4 },
     run: { src: `${root}/run/Run.png`, cell: 64, frames: 6 },
+    death: { src: `${root}/death/Death.png`, ...death },
   };
 }
 
@@ -71,15 +77,47 @@ function crew(root: string): Crew {
  * takes the crew whose shape and size matches how it behaves.
  */
 export const ENEMY_CREWS: Record<EnemyId, Crew> = {
-  wisp: crew("entities/npcs/wizzard"),
-  marsh_husk: crew("entities/mobs/skeleton_crew/skeleton_base"),
-  ridge_stalker: crew("entities/mobs/orc_crew/orc_rogue"),
-  root_crawler: crew("entities/mobs/skeleton_crew/skeleton_rogue"),
-  spore_bloat: crew("entities/mobs/orc_crew/orc_shaman"),
+  wisp: crew("entities/npcs/wizzard", { cell: 64, cellH: 32, frames: 6 }),
+  marsh_husk: crew("entities/mobs/skeleton_crew/skeleton_base", {
+    cell: 96,
+    cellH: 64,
+    frames: 8,
+  }),
+  ridge_stalker: crew("entities/mobs/orc_crew/orc_rogue", {
+    cell: 64,
+    frames: 6,
+  }),
+  bog_orc: crew("entities/mobs/orc_crew/orc", { cell: 64, frames: 6 }),
+  ridge_reaver: crew("entities/mobs/orc_crew/orc_warrior", {
+    cell: 96,
+    cellH: 80,
+    frames: 6,
+  }),
+  bone_chanter: crew("entities/mobs/skeleton_crew/skeleton_mage", {
+    cell: 64,
+    frames: 6,
+  }),
+  root_crawler: crew("entities/mobs/skeleton_crew/skeleton_rogue", {
+    cell: 64,
+    frames: 6,
+  }),
+  spore_bloat: crew("entities/mobs/orc_crew/orc_shaman", {
+    cell: 64,
+    frames: 7,
+  }),
+  crypt_warden: crew("entities/mobs/skeleton_crew/skeleton_warrior", {
+    cell: 64,
+    cellH: 48,
+    frames: 6,
+  }),
 };
 
 /** The crown of Серце Мережі is a war-chief of the pack, drawn twice as large. */
-export const BOSS_CREW = crew("entities/mobs/orc_crew/orc_warrior");
+export const BOSS_CREW = crew("entities/mobs/orc_crew/orc_warrior", {
+  cell: 96,
+  cellH: 80,
+  frames: 6,
+});
 export const BOSS_SCALE = 2;
 
 export const FPS = {
@@ -97,6 +135,25 @@ export const PACK_CLIPS: PackClip[] = (() => {
   for (const set of Object.values(PLAYER_CLIPS)) all.push(...Object.values(set));
   for (const c of [...Object.values(ENEMY_CREWS), BOSS_CREW])
     all.push(c.idle, c.run);
+  all.push(...VILLAGER_CLIPS);
+  const seen = new Set<string>();
+  return all.filter((clip) => {
+    if (seen.has(clip.src)) return false;
+    seen.add(clip.src);
+    return true;
+  });
+})();
+
+/**
+ * The falls, kept apart from the living strips: the artist framed every death
+ * differently, so these are checked by presence and grid rather than by the
+ * boot-line rules the walking cycles obey.
+ */
+export const DEATH_CLIPS: PackClip[] = (() => {
+  const all = [
+    ...Object.values(ENEMY_CREWS).map((c) => c.death),
+    BOSS_CREW.death,
+  ];
   const seen = new Set<string>();
   return all.filter((clip) => {
     if (seen.has(clip.src)) return false;

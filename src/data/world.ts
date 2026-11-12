@@ -76,6 +76,9 @@ export type Vault = {
   layer: number;
 };
 
+/** A cottage's bottom-centre tile; the walls and roof are drawn above it. */
+export type Cottage = { tx: number; ty: number };
+
 export type World = {
   kind: Uint8Array;
   biome: Uint8Array;
@@ -85,6 +88,12 @@ export type World = {
   stall: { tx: number; ty: number };
   /** the alchemist's own brewing bench */
   table: { tx: number; ty: number };
+  /** the little hamlet around the home clearing */
+  cottages: Cottage[];
+  /** the village fire on the green */
+  bonfires: { tx: number; ty: number }[];
+  /** tiles taken by walls and fire pits, which carry no ObjectKind */
+  buildingTiles: Set<number>;
   /** every mouth of the Root Network, with the depth it delivers you to */
   sinkholes: { tx: number; ty: number; layer: number }[];
   spawn: { tx: number; ty: number };
@@ -180,6 +189,7 @@ const SOLID: Record<ObjectKind, boolean> = {
 export function isSolid(w: World, tx: number, ty: number): boolean {
   if (!inBounds(tx, ty)) return true;
   if (tileAt(w, tx, ty) === "water") return true;
+  if (w.buildingTiles.has(idx(tx, ty))) return true;
   const o = objectAt(w, tx, ty);
   return o ? SOLID[o] : false;
 }
@@ -301,11 +311,13 @@ export function generateWorld(): World {
         else if (r < 0.36) obj[i] = "rubble";
         else if (r < 0.42) obj[i] = "bush";
       } else {
-        if (r < 0.34) obj[i] = "pine";
-        else if (r < 0.5) obj[i] = "round_tree";
-        else if (r < 0.56) obj[i] = "bush";
-        else if (r < 0.59) obj[i] = "stump";
-        else if (r < 0.61) obj[i] = "dead_tree";
+        // The pack's trees are wider than a tile, so a third of the thicket
+        // already closes into a wall of canopy — denser than that buries her.
+        if (r < 0.15) obj[i] = "pine";
+        else if (r < 0.23) obj[i] = "round_tree";
+        else if (r < 0.31) obj[i] = "bush";
+        else if (r < 0.34) obj[i] = "stump";
+        else if (r < 0.36) obj[i] = "dead_tree";
       }
     }
   }
@@ -362,6 +374,50 @@ export function generateWorld(): World {
     kind[idx(s.tx, s.ty)] = 0;
   }
 
+  // The hamlet: three cottages around the green, each six tiles across and
+  // two deep, with its door facing the fire.
+  const buildingTiles = new Set<number>();
+  const yardTiles = new Set<number>();
+  const clearBlock = (x0: number, y0: number, x1: number, y1: number): void => {
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (!inBounds(x, y)) continue;
+        const i = idx(x, y);
+        kind[i] = 0;
+        obj[i] = undefined;
+        buildingTiles.add(i);
+      }
+    }
+  };
+  const clearYard = (x0: number, y0: number, x1: number, y1: number): void => {
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (!inBounds(x, y)) continue;
+        const i = idx(x, y);
+        if (kind[i] === 2) continue;
+        obj[i] = undefined;
+        yardTiles.add(i);
+      }
+    }
+  };
+  const cottages: Cottage[] = [
+    { tx: HOME.x - 14, ty: HOME.y + 9 },
+    { tx: HOME.x + 16, ty: HOME.y + 12 },
+    { tx: HOME.x - 4, ty: HOME.y - 12 },
+  ];
+  for (const c of cottages) {
+    clearBlock(c.tx - 3, c.ty - 1, c.tx + 2, c.ty);
+  }
+  // One shared green between every door and the fire: the hamlet should read
+  // as a place people live, not three huts drowning in canopy. The buffer is
+  // wide because a pine paints three tiles past its trunk.
+  clearYard(HOME.x - 20, HOME.y - 13, HOME.x + 23, HOME.y + 19);
+
+  const bonfires = [{ tx: HOME.x + 7, ty: HOME.y + 10 }];
+  for (const f of bonfires) {
+    clearBlock(f.tx, f.ty, f.tx + 1, f.ty + 1);
+  }
+
   const rings = new Set<number>();
   for (const v of VAULTS)
     for (const i of sealVault(v, kind, biome, obj, sinkholes)) rings.add(i);
@@ -396,7 +452,8 @@ export function generateWorld(): World {
   for (let ty = 2; ty < MAP_H - 2; ty++) {
     for (let tx = 2; tx < MAP_W - 2; tx++) {
       const i = idx(tx, ty);
-      if (obj[i] || kind[i] !== 0) continue;
+      if (obj[i] || kind[i] !== 0 || buildingTiles.has(i) || yardTiles.has(i))
+        continue;
       if (Math.hypot(tx - spawn.tx, ty - spawn.ty) < 3) continue;
       if (Math.hypot(tx - stall.tx, ty - stall.ty) < 3) continue;
       if (Math.hypot(tx - table.tx, ty - table.ty) < 2) continue;
@@ -431,6 +488,9 @@ export function generateWorld(): World {
     plots: new Map(),
     stall,
     table,
+    cottages,
+    bonfires,
+    buildingTiles,
     sinkholes,
     spawn,
     spiritHomes,

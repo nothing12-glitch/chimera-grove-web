@@ -7,8 +7,15 @@ import {
 } from "./core/input";
 import { buildSprite } from "./core/sprites";
 import { initSplash } from "./core/splash";
-import { artSettled, loadArt, loadPack, packSettled } from "./core/sheets";
-import { PACK_CLIPS } from "./data/pack";
+import {
+  artSettled,
+  loadArt,
+  loadPack,
+  loadPackSheets,
+  packSettled,
+} from "./core/sheets";
+import { DEATH_CLIPS, PACK_CLIPS } from "./data/pack";
+import { PACK_PROP_SOURCES, STATION_CLIPS } from "./data/packprops";
 import { HOE, SICKLE, WATERING_CAN } from "./data/art";
 import { BOSS, HP_MAX } from "./data/enemies";
 import { caveName, type Cave } from "./data/roots";
@@ -59,13 +66,19 @@ import {
   type Slot,
 } from "./game/state";
 import { spawnSpirits, stepSpirits, type Spirit } from "./game/spirits";
+import {
+  spawnVillagers,
+  stepVillagers,
+  type Villager,
+} from "./game/villagers";
 
 const canvasEl = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvasEl) throw new Error("#game canvas missing");
 const canvas: HTMLCanvasElement = canvasEl;
 const splash = initSplash();
 loadArt();
-loadPack(PACK_CLIPS);
+loadPack([...PACK_CLIPS, ...DEATH_CLIPS, ...STATION_CLIPS]);
+loadPackSheets(PACK_PROP_SOURCES);
 
 splash?.stage("Проростає гай…");
 const world: World = generateWorld();
@@ -110,6 +123,7 @@ if (!saved) {
 }
 
 const spirits: Spirit[] = spawnSpirits(world);
+const villagers: Villager[] = spawnVillagers(world);
 if (saved) {
   for (const [id, x, y, dir, trust, want] of saved.game.spirits ?? []) {
     const s = spirits.find((sp) => sp.id === id);
@@ -151,6 +165,7 @@ const worldSeed = (0x5eed + homeMouth.tx * 7919 + homeMouth.ty * 104729) >>> 0;
 const combat = new Combat();
 const ctx: Ctx = {
   spirits,
+  villagers,
   run,
   cave: game.scene === "roots" ? openLayer(run.layer, worldSeed, run) : null,
   combat,
@@ -368,6 +383,7 @@ function frame(now: number): void {
 
   tickTime(game, world, dt, events, ctx);
   if (game.skip <= 0) stepSpirits(spirits, game, world, dt);
+  if (game.skip <= 0 && !ctx.cave) stepVillagers(villagers, game, world, dt);
   // Nobody hunts you while you are asleep, in a menu, or waiting for dawn.
   const felled =
     !blocked &&
@@ -386,7 +402,7 @@ function frame(now: number): void {
 
   if (ctx.cave)
     renderer.drawCave(game, ctx.cave, run, fx, now / 1000, combat);
-  else renderer.draw(game, fx, now / 1000, spirits, combat);
+  else renderer.draw(game, fx, now / 1000, spirits, villagers, combat);
   if (world.opened.size !== openedSeen) {
     openedSeen = world.opened.size;
     minimap.invalidate();
@@ -482,6 +498,7 @@ if (import.meta.env.DEV) {
     events,
     hud,
     spirits,
+    villagers,
     run,
     ctx,
     combat,

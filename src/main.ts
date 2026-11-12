@@ -41,6 +41,17 @@ import {
   tideRatio,
 } from "./game/roots";
 import {
+  freshAchievements,
+  achievementsFromSaved,
+} from "./game/achievements";
+import { Menu, type MenuAction, type MenuView } from "./game/menu";
+import {
+  applySettings,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from "./game/settings";
+import {
   advanceDay,
   brew,
   buySeeds,
@@ -59,12 +70,15 @@ import {
 } from "./game/systems";
 import {
   clearSave,
+  DAY_MINUTES,
+  dayLength,
   loadGame,
   newGame,
   SLOT_COUNT,
   type Game,
   type Slot,
 } from "./game/state";
+import { statsFromSaved } from "./data/stats";
 import { spawnSpirits, stepSpirits, type Spirit } from "./game/spirits";
 import {
   spawnVillagers,
@@ -75,6 +89,9 @@ import {
 const canvasEl = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvasEl) throw new Error("#game canvas missing");
 const canvas: HTMLCanvasElement = canvasEl;
+const hudEl = document.querySelector<HTMLElement>("#hud");
+const settings: Settings = loadSettings();
+applySettings(settings);
 const splash = initSplash();
 loadArt();
 loadPack([...PACK_CLIPS, ...DEATH_CLIPS, ...STATION_CLIPS]);
@@ -111,7 +128,12 @@ if (saved) {
     growth: s.growth ?? 0,
     hp: s.hp ?? HP_MAX,
     bossDowned: s.bossDowned ?? false,
+    stats: statsFromSaved(s.stats),
+    ach: achievementsFromSaved(s.ach),
   };
+  // The clock was wound at the length the save remembers; rewinding it to the
+  // length the player chose now keeps the same hour on the wall.
+  if (s.dayLen) game.dayTime = (game.dayTime / s.dayLen) * dayLength();
   world.plots.clear();
   for (const [i, moisture, points, crop, sway] of s.plots) {
     world.plots.set(i, { moisture, points, crop, sway: sway ?? Math.random() });
@@ -121,6 +143,12 @@ if (!saved) {
   game.px = world.spawn.tx * 16;
   game.py = world.spawn.ty * 16 - 2;
 }
+let hasSave = !!saved;
+
+/** The title screen and the pause overlay both stop the world from ticking. */
+type Mode = "title" | "play" | "pause";
+let mode: Mode = "title";
+let introShown = false;
 
 const spirits: Spirit[] = spawnSpirits(world);
 const villagers: Villager[] = spawnVillagers(world);
@@ -175,6 +203,7 @@ const events: Events = {
   toast: (text, tone) => hud.toast(text, tone),
   fx: (x, y, color, kind = "spark") => spawn(fx, x, y, color, kind),
   shake: (power) => {
+    if (!settings.shake) return;
     renderer.shake = Math.max(renderer.shake, power / 16);
   },
   enterRoots(layer) {
@@ -253,6 +282,114 @@ hud.onReset(() => {
   location.reload();
 });
 
+const menu = new Menu(menuView());
+menu.onAction(runMenuAction);
+
+function menuView(): MenuView {
+  return {
+    hasSave,
+    day: game.day,
+    place: minimap.name(game),
+    stats: game.stats,
+    settings,
+    dayOptions: DAY_MINUTES,
+  };
+}
+
+function switchTo(next: Mode): void {
+  mode = next;
+  const overlay = next !== "play";
+  hudEl?.classList.toggle("menu-mode", overlay);
+  canvas.classList.toggle("dim", overlay);
+  if (!overlay) {
+    menu.close();
+    if (!introShown) {
+      introShown = true;
+      showIntro();
+    }
+    return;
+  }
+  menu.open(next, menuView());
+}
+
+function runMenuAction(a: MenuAction): void {
+  switch (a.type) {
+    case "resume":
+      switchTo("play");
+      return;
+    case "saveNow":
+      commit(game, world, ctx);
+      hasSave = true;
+      hud.toast("Світанок і кишеню записано в сейв", "good");
+      return;
+    case "toTitle":
+      commit(game, world, ctx);
+      hasSave = true;
+      switchTo("title");
+      return;
+    case "help":
+      hud.setHelp(true);
+      return;
+    case "dropSave":
+      window.removeEventListener("beforeunload", saveOnUnload);
+      clearSave();
+      location.reload();
+      return;
+    case "toggle":
+      settings[a.key] = !settings[a.key];
+      saveSettings(settings);
+      menu.update(menuView());
+      return;
+    case "dayLength": {
+      // The hour on the wall must not jump when the length of a day does.
+      const before = dayLength();
+      settings.dayMinutes = a.minutes;
+      saveSettings(settings);
+      game.dayTime = (game.dayTime / before) * dayLength();
+      menu.update(menuView());
+      return;
+    }
+  }
+}
+
+let wanderT = 0;
+let wanderX = 0;
+let wanderY = 0;
+
+/** The alchemist strolls the green behind the title, so the menu is never a poster. */
+function titleWalk(dt: number): void {
+  if (ctx.cave || game.scene !== "grove") return;
+  wanderT -= dt;
+  if (wanderT <= 0) {
+    const dirs = [
+      [0, 1],
+      [0, -1],
+      [-1, 0],
+      [1, 0],
+      [0, 0],
+      [0, 0],
+    ];
+    const [dx, dy] = dirs[(Math.random() * dirs.length) | 0];
+    wanderX = dx;
+    wanderY = dy;
+    wanderT = dx || dy ? 1.4 + Math.random() * 1.8 : 0.8 + Math.random() * 1.6;
+  }
+  movePlayer(game, world, wanderX, wanderY, dt, false);
+}
+
+let sinceBadge = 0;
+
+/** Badges are announced the moment the score crosses them, then never again. */
+function announceBadges(dt: number): void {
+  sinceBadge += dt;
+  if (sinceBadge < 0.5) return;
+  sinceBadge = 0;
+  const got = freshAchievements(game);
+  if (!got.length) return;
+  for (const a of got) hud.toast(`Спогад гаю: «${a.name}» — ${a.blurb}`, "good");
+  commit(game, world, ctx);
+}
+
 function closeShop(): void {
   game.shopOpen = false;
   hud.setShop(false, game);
@@ -268,15 +405,32 @@ function closeMap(): void {
 }
 
 function handleKeys(): void {
-  if (wasPressed("h")) hud.setHelp(!hud.helpOpen);
+  if (hud.helpOpen && (wasPressed("escape") || wasPressed("h"))) {
+    hud.setHelp(false);
+    return;
+  }
+  if (menu.isOpen) {
+    if (hud.helpOpen) return;
+    let move = 0;
+    if (wasPressed("arrowup") || wasPressed("w")) move -= 1;
+    if (wasPressed("arrowdown") || wasPressed("s")) move += 1;
+    menu.nav(
+      move,
+      wasPressed("enter") || wasPressed("space"),
+      wasPressed("escape"),
+    );
+    return;
+  }
+
+  if (wasPressed("h")) hud.setHelp(true);
   if (wasPressed("m")) hud.setMap(!hud.mapOpen, minimap, game, spirits);
   if (wasPressed("escape")) {
-    if (hud.helpOpen) hud.setHelp(false);
-    else if (hud.mapOpen) closeMap();
+    if (hud.mapOpen) closeMap();
     else if (game.shopOpen) closeShop();
     else if (game.brewOpen) closeBrew();
+    else switchTo("pause");
   }
-  if (game.shopOpen || game.brewOpen || hud.helpOpen || hud.mapOpen) return;
+  if (game.shopOpen || game.brewOpen || hud.mapOpen) return;
 
   for (let i = 0; i < SLOT_COUNT; i++) {
     if (wasPressed(String(i + 1))) game.selected = i;
@@ -362,7 +516,13 @@ function frame(now: number): void {
 
   handleKeys();
 
-  const blocked = game.shopOpen || game.brewOpen || hud.helpOpen || hud.mapOpen;
+  const paused = mode !== "play";
+  const blocked =
+    paused ||
+    game.shopOpen ||
+    game.brewOpen ||
+    hud.helpOpen ||
+    hud.mapOpen;
   if (!blocked) {
     const a = axis();
     if (ctx.cave) {
@@ -379,23 +539,33 @@ function frame(now: number): void {
       movePlayer(game, world, a.x, a.y, dt);
     }
   }
-  if (game.skip > 0 && wasPressed("f")) game.skip = 0.02;
 
-  tickTime(game, world, dt, events, ctx);
-  if (game.skip <= 0) stepSpirits(spirits, game, world, dt);
-  if (game.skip <= 0 && !ctx.cave) stepVillagers(villagers, game, world, dt);
-  // Nobody hunts you while you are asleep, in a menu, or waiting for dawn.
-  const felled =
-    !blocked &&
-    game.skip <= 0 &&
-    combat.update(game, world, ctx.cave, dt, events);
-  if (felled) {
-    combat.collapse(game, world, events);
-    ctx.cave = null;
-    run.layer = 0;
-    run.tide = 0;
-    run.haul = 0;
-    commit(game, world, ctx);
+  if (paused) {
+    // The title screen is an attract mode: the hamlet keeps living, the clock does not.
+    if (mode === "title") {
+      titleWalk(dt);
+      stepSpirits(spirits, game, world, dt);
+      if (!ctx.cave) stepVillagers(villagers, game, world, dt);
+    }
+  } else {
+    if (game.skip > 0 && wasPressed("f")) game.skip = 0.02;
+    tickTime(game, world, dt, events, ctx);
+    if (game.skip <= 0) stepSpirits(spirits, game, world, dt);
+    if (game.skip <= 0 && !ctx.cave) stepVillagers(villagers, game, world, dt);
+    // Nobody hunts you while you are asleep, in a menu, or waiting for dawn.
+    const felled =
+      !blocked &&
+      game.skip <= 0 &&
+      combat.update(game, world, ctx.cave, dt, events);
+    if (felled) {
+      combat.collapse(game, world, events);
+      ctx.cave = null;
+      run.layer = 0;
+      run.tide = 0;
+      run.haul = 0;
+      commit(game, world, ctx);
+    }
+    announceBadges(dt);
   }
   stepFx(fx, dt);
   renderer.shake = Math.max(0, renderer.shake - dt * 1.6);
@@ -409,7 +579,7 @@ function frame(now: number): void {
   }
   if (hud.mapOpen) hud.setMap(true, minimap, game, spirits, combat.enemies);
   hud.setPlace(minimap.name(game));
-  const radarOn = game.scene === "grove" && !ctx.cave;
+  const radarOn = settings.radar && game.scene === "grove" && !ctx.cave;
   hud.setRadar(minimap, game, spirits, radarOn, combat.enemies);
   hud.setBoss(
     combat.boss
@@ -421,11 +591,11 @@ function frame(now: number): void {
   if (!booted && (packSettled() || now >= packDeadline)) {
     booted = true;
     splash?.stage(`День ${game.day} · гай прокинувся`);
-    splash?.ready(showIntro);
+    splash?.ready(() => switchTo("title"));
   }
   hud.refresh(
     game,
-    currentHint(game, world, ctx),
+    settings.hints ? currentHint(game, world, ctx) : null,
     countReady(world),
     spirits,
     ctx.cave
@@ -484,7 +654,7 @@ function showIntro(): void {
     );
   }
 }
-if (!splash) showIntro();
+if (!splash) switchTo("title");
 commit(game, world, ctx);
 requestAnimationFrame(frame);
 
@@ -504,6 +674,10 @@ if (import.meta.env.DEV) {
     combat,
     minimap,
     worldSeed,
+    menu,
+    settings,
+    switchTo,
+    runMenuAction,
     descendTo,
     surfaceTime,
     stepTide,

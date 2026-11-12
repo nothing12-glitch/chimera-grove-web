@@ -18,7 +18,8 @@ import {
 } from "../data/world";
 import {
   CAN_CAPACITY,
-  DAY_LENGTH,
+  dayLength,
+  earn,
   MOISTURE_MAX,
   saveGame,
   type Dir,
@@ -162,13 +163,14 @@ const CACHE_TIERS = [0.34, 0.58, 0.78] as const;
 function lootCache(g: Game, w: World, i: number, ev: Events): void {
   w.looted.add(i);
   w.obj[i] = "cache_open";
+  g.stats.knots += 1;
   const roll = rand01(i, 3, 911);
   const cx = (i % MAP_W) * 16 + 8;
   const cy = Math.floor(i / MAP_W) * 16 + 6;
   ev.fx(cx, cy, "#ffd98a", "leaf");
   if (roll < CACHE_TIERS[0]) {
     const n = 20 + Math.floor(roll * 90);
-    g.coins += n;
+    earn(g, n);
     ev.toast(`У кореневому вузлику ${n} сонцязь`, "good");
   } else if (roll < CACHE_TIERS[1]) {
     g.seeds.voidcap += 2;
@@ -189,6 +191,7 @@ export function movePlayer(
   dx: number,
   dy: number,
   dt: number,
+  tally = true,
 ): void {
   const speed = 78 * (g.effects.speed > 0 ? 1.4 : 1);
   const nx = g.px + dx * speed * dt;
@@ -198,8 +201,11 @@ export function movePlayer(
   g.moving = !!(dx || dy);
   if (g.moving) g.anim += dt * 7;
 
+  const x0 = g.px;
+  const y0 = g.py;
   if (!walkable(w, nx, g.py)) g.px = nx;
   if (!walkable(w, g.px, ny)) g.py = ny;
+  if (tally) g.stats.steps += (Math.abs(g.px - x0) + Math.abs(g.py - y0)) / 16;
 }
 
 /** The alchemist's boots decide collision, not the whole sprite box. */
@@ -350,6 +356,7 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
     }
     g.harvest[PASS_FRUIT] -= 1;
     const cells = openPass(w, feature.i);
+    g.stats.passes += 1;
     for (const n of cells)
       ev.fx(
         (n % MAP_W) * 16 + 8,
@@ -390,6 +397,8 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
     const def = CROPS[plot.crop];
     const yieldCount = 1 + (Math.random() < 0.3 ? 1 : 0);
     g.harvest[def.id] += yieldCount;
+    g.stats.harvested += yieldCount;
+    g.stats.crops[def.id] += yieldCount;
     plot.crop = undefined;
     plot.points = 0;
     ev.fx(cx, cy, "#ffd98a", "leaf");
@@ -411,6 +420,7 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
       setTile(w, tx, ty, "soil");
       const p: Plot = { moisture: 0, points: 0, sway: Math.random() };
       w.plots.set(i, p);
+      g.stats.tilled += 1;
       ev.fx(cx, cy, "#6f4a2c", "spark");
       ev.shake(2);
       if (plot) w.plots.delete(i);
@@ -435,6 +445,7 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
       }
       g.charges -= 1;
       plot.moisture = MOISTURE_MAX;
+      g.stats.watered += 1;
       ev.fx(cx, cy, "#7fc4d8", "drop");
       return;
     }
@@ -457,6 +468,7 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
     }
     g.seeds[slot.crop] -= 1;
     plot.crop = slot.crop;
+    g.stats.sown += 1;
     plot.points = 0;
     ev.fx(cx, cy, CROPS[slot.crop].palettes[3].c ?? "#9fe3d6", "spark");
     ev.toast(`Посаджено ${CROPS[slot.crop].name}`, "good");
@@ -470,6 +482,7 @@ export function interact(g: Game, w: World, ev: Events, ctx: Ctx): void {
 export function advanceDay(g: Game, w: World, ev: Events, ctx: Ctx): void {
   g.day += 1;
   g.dayTime = 0;
+  g.stats.dawns += 1;
   // A night above ground is the only doctor the grove can afford.
   const wounded = !ctx.cave && g.hp < HP_MAX;
   if (!ctx.cave) healFully(g);
@@ -525,16 +538,17 @@ export function tickTime(
   if (g.swing > 0) g.swing = Math.max(0, g.swing - dt);
   if (g.hurt > 0) g.hurt = Math.max(0, g.hurt - dt);
   if (g.skip > 0) {
+    const length = dayLength();
     g.skip -= dt;
-    g.dayTime += dt * (DAY_LENGTH / 0.5);
-    if (g.dayTime >= DAY_LENGTH || g.skip <= 0) {
+    g.dayTime += dt * (length / 0.5);
+    if (g.dayTime >= length || g.skip <= 0) {
       g.skip = 0;
       advanceDay(g, w, ev, ctx);
     }
     return;
   }
   g.dayTime += dt;
-  if (g.dayTime >= DAY_LENGTH) advanceDay(g, w, ev, ctx);
+  if (g.dayTime >= dayLength()) advanceDay(g, w, ev, ctx);
 }
 
 export function startSkip(g: Game, ev: Events): void {
@@ -566,6 +580,7 @@ export function commit(g: Game, w: World, ctx: Ctx): void {
       ],
   );
   const run = ctx.run;
+  g.stats.friends = ctx.spirits.filter((s) => s.trust >= TRUST_MAX).length;
   saveGame(g, w, plots, sp, {
     layer: run.layer,
     tide: run.tide,
@@ -586,7 +601,7 @@ export function sellStock(
   if (n <= 0) return;
   const gain = n * CROPS[crop].sellPrice;
   g.harvest[crop] -= n;
-  g.coins += gain;
+  earn(g, gain);
   ev.toast(`Продано ${n} × ${CROPS[crop].name} за ${gain} сонцязь`, "good");
   commit(g, w, ctx);
 }
@@ -631,6 +646,8 @@ export function brew(
     g.harvest[crop as CropId] -= qty ?? 0;
   }
   g.potions[potion] += 1;
+  g.stats.brewed += 1;
+  g.stats.brews[potion] += 1;
   ev.fx(w.table.tx * 16 + 8, w.table.ty * 16 + 4, def.color, "spark");
   ev.shake(2);
   ev.toast(`Зварено «${def.name}»`, "good");

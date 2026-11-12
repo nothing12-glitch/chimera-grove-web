@@ -109,7 +109,7 @@ import {
   type BiomeId,
   type World,
 } from "../data/world";
-import { DAY_LENGTH, type Game } from "./state";
+import { dayLength, type Game } from "./state";
 import { DEATH_TIME, facingPoint, type Boss, type Combat, type Enemy } from "./enemies";
 import { glowRadius, tideRatio, type RootsRun } from "./roots";
 import type { Spirit } from "./spirits";
@@ -1540,7 +1540,7 @@ export class Renderer {
 
   private drawLight(g: Game, t: number): void {
     const c = this.vctx;
-    const p = Math.min(1, g.dayTime / DAY_LENGTH);
+    const p = Math.min(1, g.dayTime / dayLength());
     let tint = "rgba(0,0,0,0)";
     if (p < 0.12) tint = `rgba(255,196,120,${0.2 - p})`;
     else if (p > 0.72) {

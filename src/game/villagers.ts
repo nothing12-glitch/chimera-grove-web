@@ -1,5 +1,5 @@
 import { TILE, inBounds, isSolid, type World } from "../data/world";
-import { DAY_LENGTH, type Game } from "./state";
+import { dayLength, type Game } from "./state";
 import { VILLAGERS, type VillagerDef, type VillagerId } from "../data/villagers";
 import type { Events } from "./systems";
 
@@ -108,7 +108,7 @@ export function stepVillagers(
   w: World,
   dt: number,
 ): void {
-  const evening = g.dayTime / DAY_LENGTH > EVENING;
+  const evening = g.dayTime / dayLength() > EVENING;
   for (const v of list) {
     const def = VILLAGERS[v.id];
     if (v.says > 0) v.says -= dt;
@@ -199,6 +199,7 @@ export function talkVillager(v: Villager, g: Game, ev: Events): void {
   const def: VillagerDef = VILLAGERS[v.id];
   const line = def.lines[v.line % def.lines.length];
   v.line = (v.line + 1) % def.lines.length;
+  g.stats.talked += 1;
   v.says = 3.5;
   v.vx = 0;
   v.vy = 0;

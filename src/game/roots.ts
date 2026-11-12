@@ -8,6 +8,7 @@ import {
   propAt,
   type Cave,
 } from "../data/roots";
+import { earn } from "./state";
 import type { Dir, Game } from "./state";
 import type { Events } from "./systems";
 
@@ -54,6 +55,7 @@ export function enterLayer(g: Game, run: RootsRun, cave: Cave): void {
   placeAtSpawn(g, cave);
   run.tide = 0;
   run.haul = 0;
+  g.stats.deepest = Math.max(g.stats.deepest, cave.layer + 1);
 }
 
 /** The tide spares nobody: it dumps you at the sinkhole and takes what you carried. */
@@ -215,7 +217,7 @@ export function interactCave(
     const spores = 1 + (cave.layer >= 2 && Math.random() < 0.5 ? 1 : 0);
     const pay = 4 + cave.layer * 3;
     g.seeds.voidcap += spores;
-    g.coins += pay;
+    earn(g, pay);
     run.haul += spores;
     run.picked[cave.layer] = [...(run.picked[cave.layer] ?? []), i];
     cave.prop[i] = "spent";

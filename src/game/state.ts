@@ -2,6 +2,7 @@ import type { CropId } from "../data/crops";
 import { HP_MAX } from "../data/enemies";
 import type { PotionId } from "../data/potions";
 import type { SpiritId } from "../data/spirits";
+import { newStats, type Stats } from "../data/stats";
 import type { World } from "../data/world";
 
 export type ToolKind = "hoe" | "can" | "sickle";
@@ -12,13 +13,25 @@ export type Slot =
 
 export const SLOT_COUNT = 8;
 /**
- * A day is 8:00 → 20:00, twelve game hours. At 720 real seconds that is one
- * game minute per second: a full day is a twelve-minute sitting, and the clock
- * you watch moves in minutes rather than blurring past.
+ * A day is 8:00 → 20:00, twelve game hours. The default is 720 real seconds —
+ * one game minute per second — but the menu lets you make the grove hurry
+ * (six minutes) or take its time (twenty-four), so the clock lives in a
+ * variable the settings write to rather than a constant the rules read.
  */
-export const DAY_LENGTH = 720;
+export const DAY_MINUTES = [6, 12, 24] as const;
+export const DEFAULT_DAY_MINUTES = 12;
 export const CAN_CAPACITY = 4;
 export const MOISTURE_MAX = 3;
+
+let daySeconds = DEFAULT_DAY_MINUTES * 60;
+
+export function dayLength(): number {
+  return daySeconds;
+}
+
+export function setDayLength(minutes: number): void {
+  daySeconds = Math.max(1, Math.round(minutes)) * 60;
+}
 
 export type Save = {
   v: 2;
@@ -51,6 +64,12 @@ export type Save = {
   hp?: number;
   /** the crown stays dead once it has been cut down */
   bossDowned?: boolean;
+  /** absent in saves written before the grove kept score */
+  stats?: Stats;
+  /** achievement ids already announced, so a title never toasts twice */
+  ach?: string[];
+  /** how long a day ran when this save was written, in real seconds */
+  dayLen?: number;
 };
 
 export type Scene = "grove" | "roots";
@@ -102,12 +121,25 @@ export type Game = {
   hurt: number;
   /** the Crown of the Root Network has been cut down for good */
   bossDowned: boolean;
+  /** what the grove remembers: harvest, kills, dives, conversations */
+  stats: Stats;
+  /** badges the player has already been congratulated for */
+  ach: string[];
 };
 
 const KEY = "chimeragrove.save.v2";
 
 export function newPotions(): Record<PotionId, number> {
   return { dew: 0, quintessence: 0, lamp_oil: 0, calm_wind: 0 };
+}
+
+/**
+ * The only honest way to hand out suncents: every gain is also income the
+ * grove remembers, so the ledger never disagrees with the purse.
+ */
+export function earn(g: Game, amount: number): void {
+  g.coins += amount;
+  g.stats.earned += amount;
 }
 
 export function newGame(): Game {
@@ -159,6 +191,8 @@ export function newGame(): Game {
     swing: 0,
     hurt: 0,
     bossDowned: false,
+    stats: newStats(),
+    ach: [],
   };
 }
 
@@ -193,6 +227,9 @@ export function saveGame(
     looted: [...w.looted],
     hp: g.hp,
     bossDowned: g.bossDowned,
+    stats: g.stats,
+    ach: g.ach,
+    dayLen: dayLength(),
   };
   try {
     localStorage.setItem(

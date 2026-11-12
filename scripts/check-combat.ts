@@ -42,7 +42,7 @@ import {
   type Enemy,
   type Field,
 } from "../src/game/enemies.ts";
-import { DAY_LENGTH, newGame } from "../src/game/state.ts";
+import { dayLength, newGame } from "../src/game/state.ts";
 
 const problems: string[] = [];
 const fail = (message: string): void => {
@@ -200,7 +200,7 @@ const combat = new Combat();
 const home = centroid("home");
 game.px = home.tx * TILE;
 game.py = home.ty * TILE - 4;
-game.dayTime = DAY_LENGTH * 0.9;
+game.dayTime = dayLength() * 0.9;
 game.dir = "down";
 game.hurt = HURT_LOCK;
 for (let n = 0; n < 8 && !combat.enemies.length; n++)

@@ -13,7 +13,7 @@ import {
   tileAt,
   type World,
 } from "../data/world";
-import { DAY_LENGTH, type Game } from "./state";
+import { dayLength, earn, type Game } from "./state";
 import type { Events } from "./systems";
 
 export type Spirit = {
@@ -79,7 +79,7 @@ export function stepSpirits(
   w: World,
   dt: number,
 ): void {
-  const night = g.dayTime / DAY_LENGTH > 0.82;
+  const night = g.dayTime / dayLength() > 0.82;
   for (const s of list) {
     const def = SPIRITS[s.id];
     if (s.pause > 0) {
@@ -177,7 +177,8 @@ export function feedSpirit(s: Spirit, g: Game, ev: Events): void {
     g.harvest[s.want] -= 1;
     s.fed = true;
     const gain = 10 + s.trust * 8;
-    g.coins += gain;
+    earn(g, gain);
+    g.stats.treats += 1;
     s.trust = Math.min(TRUST_MAX, s.trust + 1);
     ev.fx(s.x + 8, s.y + 4, CROPS[s.want].palettes[3].c ?? "#ffd98a", "leaf");
     ev.toast(`${def.name} бере «${CROPS[s.want].name}»`, "good");
@@ -189,7 +190,7 @@ export function feedSpirit(s: Spirit, g: Game, ev: Events): void {
   if (other) {
     g.harvest[other] -= 1;
     s.fed = true;
-    g.coins += 4;
+    earn(g, 4);
     ev.toast(
       `${def.name} понюхав «${CROPS[other].name}» і відвернувся: хотів «${CROPS[s.want].name}»`,
       "bad",

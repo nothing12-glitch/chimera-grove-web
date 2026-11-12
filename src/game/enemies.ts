@@ -20,7 +20,7 @@ import {
   tileAt,
   type World,
 } from "../data/world";
-import { DAY_LENGTH, type Dir, type Game } from "./state";
+import { dayLength, earn, type Dir, type Game } from "./state";
 import type { Events } from "./systems";
 
 export type Enemy = {
@@ -174,7 +174,7 @@ function roll(id: EnemyId, at: { x: number; y: number }): Enemy {
 }
 
 export function isNight(g: Game): boolean {
-  const clock = g.dayTime / DAY_LENGTH;
+  const clock = g.dayTime / dayLength();
   return clock > 0.84 || clock < 0.04;
 }
 
@@ -531,7 +531,8 @@ export class Combat {
       t: 0,
       hover: def.hover,
     });
-    g.coins += def.coins;
+    earn(g, def.coins);
+    g.stats.felled += 1;
     ev.fx(e.x + 8, e.y + 8, "#ffd98a", "spark");
     if (Math.random() < def.drop.chance) {
       g.harvest[def.drop.crop] += 1;
@@ -554,7 +555,8 @@ export class Combat {
         hover: false,
       });
     g.bossDowned = true;
-    g.coins += BOSS.coins;
+    earn(g, BOSS.coins);
+    g.stats.crown = 1;
     g.seeds.voidcap += 6;
     this.boss = null;
     this.enemies = [];
@@ -569,6 +571,7 @@ export class Combat {
   collapse(g: Game, w: World, ev: Events): void {
     const lost = Math.min(g.coins, 5 + Math.floor(g.coins * 0.15));
     g.coins -= lost;
+    g.stats.wounds += 1;
     g.hp = HP_MAX;
     g.hurt = 2;
     g.px = w.spawn.tx * TILE;

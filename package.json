@@ -14,7 +14,8 @@
     "check:anim": "node --import ./scripts/ts-run.mjs scripts/check-anim.ts",
     "check:input": "node --import ./scripts/ts-run.mjs scripts/check-input.ts",
     "check:world": "node --import ./scripts/ts-run.mjs scripts/check-world.ts",
-    "check:combat": "node --import ./scripts/ts-run.mjs scripts/check-combat.ts"
+    "check:combat": "node --import ./scripts/ts-run.mjs scripts/check-combat.ts",
+    "check:menu": "node --import ./scripts/ts-run.mjs scripts/check-menu.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

@@ -17,7 +17,7 @@ import { BIOME_LEGEND, MARK_LEGEND, type Minimap } from "./minimap";
 import type { Enemy } from "./enemies";
 import {
   CAN_CAPACITY,
-  DAY_LENGTH,
+  dayLength,
   type Game,
   type Slot,
   type ToolKind,
@@ -209,7 +209,7 @@ export class Hud {
     cave: CaveView | null = null,
   ): void {
     this.day.textContent = `День ${g.day}`;
-    const hours = 8 + (g.dayTime / DAY_LENGTH) * 12;
+    const hours = 8 + (g.dayTime / dayLength()) * 12;
     const hh = Math.floor(hours);
     const mm = Math.floor((hours - hh) * 60);
     this.clock.textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
